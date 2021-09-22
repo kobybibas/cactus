@@ -1,0 +1,22 @@
+data_dir: product_clustering_fluent2_bucket/tree/cactus/amazon_dataset # Relative to hydra run dir
+is_manifold: true
+is_debug: true
+is_override: true
+last_review_for_test_ratio: 0.125
+num_sample_per_class_threshold: 20
+
+category_list:
+  # - "Electronics"
+  # - "Office_Products"
+  # - "Office_Products"
+  - "Clothing_Shoes_and_Jewelry"
+  # - "Digital_Music"
+  # - "Beauty"
+  # - "Home_and_Kitchen"
+  # - "Video_Games"
+  # - "Toys_and_Games"
+  # - "Books"
+
+hydra:
+  run:
+    dir: /home/kbibas/cactus_outputs/remap_id_${now:%Y%m%d_%H%M%S}

@@ -1,0 +1,27 @@
+# Data params
+data_dir: product_clustering_fluent2_bucket/tree/cactus/amazon_dataset
+is_manifold: true
+local_dir_path: ../amazon_review_local_dir # Relative to out dir. None for get from manifold
+category: Electronics
+manifold_out_dir: product_clustering_fluent2_bucket/tree/cactus/outputs/train_bpr
+emb_size: 32
+
+# Optimization params
+batch_size: 4096
+num_workers: 0 # Dataset is stored in GPU so no need for workers.
+l2_reg: 1e-5 # Explicit add l2 regularization to the loss.
+lr: 10.0
+milestones: [200,280]
+epochs: 300
+num_negatives: 4
+embedding_max_norm: 1.0 # null for ignore. The maximum allowed norm
+
+# Flow params
+seed: 1234
+top_k_list: [1, 10, 20, 40 ,50]
+is_debug: false
+gpu: 0
+
+hydra:
+  run:
+    dir: /home/kbibas/cactus_outputs/train_bpr_${now:%Y%m%d_%H%M%S}
