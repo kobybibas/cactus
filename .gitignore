@@ -17,9 +17,9 @@
 *.xml
 *.log
 *.pt
-*.json
 *.pkl
 outputs/*
+.vscode
 .vscode/*
 
 ### Database ###
