@@ -1,8 +1,7 @@
-data_dir: product_clustering_fluent2_bucket/tree/cactus/amazon_dataset # Relative to hydra run dir
-is_manifold: true
+data_dir: "/home/koby/datasets/amazon_dataset" # Relative to hydra run dir
 is_debug: true
 is_override: true
-last_review_for_test_ratio: 0.125
+last_review_for_test_ratio: 0.1
 num_sample_per_class_threshold: 20
 
 category_list:
@@ -19,4 +18,4 @@ category_list:
 
 hydra:
   run:
-    dir: /home/kbibas/cactus_outputs/remap_id_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/remap_id_${now:%Y%m%d_%H%M%S}

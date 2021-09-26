@@ -1,16 +1,12 @@
 # Data params
-data_dir: product_clustering_fluent2_bucket/tree/cactus/amazon_dataset
-category: Electronics
-is_manifold: true
-local_dir_path: ../amazon_review_local_dir # relative to out dir
-manifold_out_dir: product_clustering_fluent2_bucket/tree/cactus/outputs/train_model_with_cf
-cf_vector_base_dir: product_clustering_fluent2_bucket/tree/cactus/outputs/train_autoencoder/train_autoencoder_Electronics_20210913_005225
+data_dir: /home/koby/datasets/amazon_dataset 
+category: Clothing_Shoes_and_Jewelry
+cf_vector_base_dir: ../outputs/train_autoencoder_Electronics_20210913_005225
 
 # Dataset params
 train_set_ratio: 0.75
 seed: 1234
 num_workers: 8
-dpp_server_num_worker_threads: 8
 img_transform_resize: 256 # Aligned with imagenet
 img_transform_crop: 224 # Aligned with imagenet
 is_use_cf_bias: true
@@ -37,9 +33,9 @@ gpu: 0
 
 hydra:
   run:
-    dir: /home/kbibas/cactus_outputs/train_model_${category}_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/train_model_${category}_${now:%Y%m%d_%H%M%S}
   sweep:
-    dir: /home/kbibas/cactus_outputs/train_model_multirun_${category}_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/train_model_multirun_${category}_${now:%Y%m%d_%H%M%S}
     subdir: train_model_${category}_${now:%Y%m%d_%H%M%S}_${hydra.job.num}
 
 # Hyper-params:

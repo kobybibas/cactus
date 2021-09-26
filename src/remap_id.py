@@ -10,8 +10,7 @@ import hydra
 import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
-from src.data_utils import DataHelper
-from src.manifold_utils import delete_manifold_file
+from data_utils import DataHelper
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -100,39 +99,6 @@ def build_set_for_recommendation(
     return train_set, test_set
 
 
-# def build_set_for_recommendation(
-#     reviews_df: pd.DataFrame, user_count: int, item_count: int, example_count: int
-# ):
-#     train_set = []
-#     test_set = []
-#     for reviewerID, hist in reviews_df.groupby("reviewerID"):
-#         pos_list = hist["asin"].tolist()
-
-#         def gen_neg():
-#             neg = pos_list[0]
-#             while neg in pos_list:
-#                 neg = random.randint(0, item_count - 1)
-#             return neg
-
-#         neg_list = [gen_neg() for i in range(len(pos_list))]
-#         rid_list = [reviewerID for i in range(len(pos_list))]
-#         hist = list(zip(rid_list, pos_list, neg_list))
-
-#         train_set.extend(hist[:-1])
-#         test_set.append(hist[-1])
-
-#     random.shuffle(train_set)
-#     random.shuffle(test_set)
-
-#     assert len(test_set) == user_count
-#     assert len(test_set) + len(train_set) == example_count
-
-#     train_set = np.array(train_set, dtype=np.int32)
-#     test_set = np.array(test_set, dtype=np.int32)
-
-#     return train_set, test_set
-
-
 def remove_infrequent_labels(
     meta_df: pd.DataFrame, num_sample_per_class_threshold: int = 20
 ) -> pd.DataFrame:
@@ -170,7 +136,6 @@ def remap_id(cfg: DictConfig):
 
         # Load dataframes
         data_downloader = DataHelper(
-            is_manifold=cfg.is_manifold,
             is_debug=cfg.is_debug,
             is_override=cfg.is_override,
         )
@@ -186,8 +151,8 @@ def remap_id(cfg: DictConfig):
         meta_df_org = meta_df.copy()
 
         # Filter reviews
-        reviews_df = remove_infrequent_users(reviews_df, 10)
-        reviews_df = remove_infrequent_items(reviews_df, 8)
+        # reviews_df = remove_infrequent_users(reviews_df, 10)
+        # reviews_df = remove_infrequent_items(reviews_df, 8)
         # reviews_df = select_sessions(reviews_df, 4, 90) # TODO: verify we dont need it
         meta_df = select_meta(reviews_df, meta_df)
         logger.info(
@@ -197,8 +162,8 @@ def remap_id(cfg: DictConfig):
         )
 
         # Remove items that belong to label with small number of samples
-        meta_df = remove_infrequent_labels(meta_df, cfg.num_sample_per_class_threshold)
-        reviews_df = remove_item_from_review_df(reviews_df, meta_df)
+        # meta_df = remove_infrequent_labels(meta_df, cfg.num_sample_per_class_threshold)
+        # reviews_df = remove_item_from_review_df(reviews_df, meta_df)
 
         # Map
         asin_map, asin_key = build_map(meta_df, "asin")
@@ -237,7 +202,7 @@ def remap_id(cfg: DictConfig):
         out_dict = {
             "reviews_df": reviews_df,
             "meta_df": meta_df,
-            "meta_df_org": meta_df_org,  # the df before filtering
+            "meta_df_org": meta_df_org,  # df before filtering
             "item_cate_list": item_cate_list,
             "cate_map": cate_map,
             "user_count": user_count,
@@ -248,11 +213,10 @@ def remap_id(cfg: DictConfig):
             "test_set": test_set,
         }
 
-        out_pkl = osp.join(manifold_path, category + ".pkl")
-
-        logger.info(f"save_data_to_manifold {out_pkl}")
-        data_downloader.save_data_to_manifold(out_pkl, out_dict)
-        logger.info(f"Finish {category=} in {time.time() -t0 :.2f} sec")
+        out_pkl = osp.join(cfg.data_dir, category + ".pkl")
+        with open(out_pkl, 'wb') as handle:
+            pickle.dump(out_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        logger.info(f"Finish {out_pkl=} in {time.time() -t0 :.2f} sec")
 
     logger.info(f"Finish remap_id in {time.time() -t_start :.2f} sec")
 

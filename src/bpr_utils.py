@@ -10,52 +10,32 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.utils.data as data
-from src.manifold_utils import read_data_from_manifold
-from torchmetrics.functional import recall, precision
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
 
-def get_bpr_datasets(
-    data_dir: str, category: str, local_dir_path: str = None, device: str = "cpu"
-):
-    if local_dir_path is not None:
-        os.makedirs(local_dir_path, exist_ok=True)
-        local_pkl_path = osp.join(local_dir_path, f"{category}.pkl")
-        if not osp.exists(local_pkl_path):
-            pkl_data = read_data_from_manifold(
-                f"{data_dir}/{category}.pkl",
-                is_from_pkl=True,
-            )
-            logger.info(f"Finish read_data_from_manifold. {list(pkl_data.keys())=}")
-            with open(local_pkl_path, "wb") as f:
-                pickle.dump(pkl_data, f, pickle.HIGHEST_PROTOCOL)
-
-        with open(local_pkl_path, "rb") as f:
-            pkl_data = pickle.load(f)
-    else:
-        pkl_data = read_data_from_manifold(
-            f"{data_dir}/{category}.pkl",
-            is_from_pkl=True,
-        )
+def get_bpr_datasets(data_dir: str, category: str):
+    pkl_path = osp.join(data_dir, f"{category}.pkl")
+    with open(pkl_path, "rb") as f:
+        pkl_data = pickle.load(f)
 
     train_set, test_set = pkl_data["train_set"], pkl_data["test_set"]
     num_users, num_items = pkl_data["user_count"], pkl_data["item_count"]
     logger.info(f"{num_users=} {num_items=}")
-    train_set = BPRData(train_set, num_users, num_items, device=device)
-    test_set = BPRData(test_set, num_users, num_items, device=device)
+    train_set = BPRData(train_set, num_users, num_items)
+    test_set = BPRData(test_set, num_users, num_items)
     return train_set, test_set
 
 
 class BPRData(data.Dataset):
     def __init__(
-        self, set_data: np.ndarray, num_users: int, num_items: int, device: str = "cpu"
+        self, set_data: np.ndarray, num_users: int, num_items: int
     ):
         super().__init__()
         self.num_users = num_users
         self.num_items = num_items
-        self.dataset_data = torch.from_numpy(set_data).to(device)
+        self.dataset_data = torch.from_numpy(set_data)
 
     def __len__(self):
         return len(self.dataset_data)

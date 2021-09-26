@@ -1,13 +1,12 @@
 import logging
 import os
 import os.path as osp
-import pdb
 import time
 from typing import Tuple
 
 import hydra
 import pandas as pd
-from src.data_utils import DataHelper
+from data_utils import DataHelper
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -65,9 +64,7 @@ def download_data(cfg):
     logger.info(cfg)
     logger.info(f"{os.getcwd()=}")
 
-    data_helper = DataHelper(
-        is_manifold=cfg.is_manifold, is_debug=cfg.is_debug, is_override=cfg.is_override
-    )
+    data_helper = DataHelper(is_debug=cfg.is_debug, is_override=cfg.is_override)
 
     dst_dir = cfg.data_dir
     categories = cfg.category_list

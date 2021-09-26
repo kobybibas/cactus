@@ -10,17 +10,6 @@ from typing import Callable
 import pandas as pd
 import torch
 from PIL import Image
-from pytorch.data.fb.enrichment import ManifoldEnrichment
-from pytorch.data.fb.inline_dataset import InlineDataset
-from pytorch.data.fb.onbox.data_loader import (
-    DataLoadingOptions,
-    OnBoxDataLoader,
-    PristineSession,
-    SingleInstanceDiscoveryMethod,
-    DataLoadingOptions,
-    GlogOptions,
-)
-from src.manifold_utils import read_data_from_manifold
 from torchvision import transforms
 
 logger = logging.getLogger(__name__)
