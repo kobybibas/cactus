@@ -1,8 +1,8 @@
-data_dir: "/home/koby/datasets/amazon_dataset" # Relative to hydra run dir
+data_dir: /data/amazon_dataset
 is_debug: true
 is_override: true
 last_review_for_test_ratio: 0.1
-num_sample_per_class_threshold: 20
+# num_sample_per_class_threshold: 20
 
 category_list:
   # - "Electronics"

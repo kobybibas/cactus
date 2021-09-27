@@ -48,17 +48,12 @@ class DataHelper:
             f.write(r.content)
 
     def ungzip_file(self, path_src: str, path_dst: str):
-        if self.is_debug:
-            logger.info(f"ungzip_file: {path_src=} {path_dst=}")
-
+        logger.info(f"ungzip_file: {path_src=} {path_dst=}")
         if self.is_exist(path_dst):
             return
+        os.system(f'gzip -dk {path_src}')
 
-        with gzip.open(path_src, "rb") as f:
-            gzip_content = f.read()
-
-        with open(path_dst, "wb") as f:
-            f.write(gzip_content)
+        
 
     def read_pickle(self, pkl_path: str) -> pd.DataFrame:
         logger.info(f"pd.read_pickle {pkl_path}")

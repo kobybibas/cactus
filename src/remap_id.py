@@ -1,4 +1,3 @@
-# based on https://github.com/TsingZ0/TLSAN/blob/master/utils/2_remap_id.py
 import logging
 import os
 import os.path as osp
@@ -15,8 +14,6 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
-
-# fore-deal
 def remove_infrequent_items(df: pd.DataFrame, min_counts: int = 5) -> pd.DataFrame:
     counts = df["asin"].value_counts()
     df = df[df["asin"].isin(counts[counts >= min_counts].index)]
@@ -31,7 +28,6 @@ def remove_infrequent_users(df: pd.DataFrame, min_counts: int = 10) -> pd.DataFr
     return df
 
 
-# select user session >= 4
 def select_sessions(df: pd.DataFrame, mins, maxs) -> pd.DataFrame:
     selected_id = []
     for reviewerID, group in tqdm(df.groupby("reviewerID")):
@@ -46,7 +42,6 @@ def select_sessions(df: pd.DataFrame, mins, maxs) -> pd.DataFrame:
     return df
 
 
-# select from meta_df
 def select_meta(df: pd.DataFrame, meta_df: pd.DataFrame) -> pd.DataFrame:
     items = df["asin"].unique()
     return meta_df[meta_df["asin"].isin(items)]
@@ -69,8 +64,6 @@ def build_map(df: pd.DataFrame, col_name: str):
 
 def build_set_for_recommendation(
     reviews_df: pd.DataFrame,
-    user_count: int,
-    item_count: int,
     example_count: int,
     last_review_for_test_ratio: float = 0.1,
 ):
@@ -191,8 +184,6 @@ def remap_id(cfg: DictConfig):
         # Train-test split
         train_set, test_set = build_set_for_recommendation(
             reviews_df,
-            user_count,
-            item_count,
             example_count,
             cfg.last_review_for_test_ratio,
         )
@@ -202,7 +193,7 @@ def remap_id(cfg: DictConfig):
         out_dict = {
             "reviews_df": reviews_df,
             "meta_df": meta_df,
-            "meta_df_org": meta_df_org,  # df before filtering
+            "meta_df_org": meta_df_org,  
             "item_cate_list": item_cate_list,
             "cate_map": cate_map,
             "user_count": user_count,

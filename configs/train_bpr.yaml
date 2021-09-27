@@ -1,5 +1,5 @@
 # Data params
-data_dir: /home/koby/datasets/amazon_dataset # Relative to hydra run dir
+data_dir: /data/amazon_dataset
 category: Clothing_Shoes_and_Jewelry
 emb_size: 32
 
@@ -21,4 +21,4 @@ gpu: 0
 
 hydra:
   run:
-    dir: ../outputs/train_bpr_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/train_bpr_${category}_${now:%Y%m%d_%H%M%S}

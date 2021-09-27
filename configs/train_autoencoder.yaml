@@ -1,14 +1,11 @@
 # Data params
-data_dir: product_clustering_fluent2_bucket/tree/cactus/amazon_dataset
-is_manifold: true
-local_dir_path: ../amazon_review_local_dir # Relative to out dir. None for get from manifold
-category: Clothing_Shoes_and_Jewelry # Electronics
-manifold_out_dir: product_clustering_fluent2_bucket/tree/cactus/outputs/train_autoencoder
+data_dir: /data/amazon_dataset
+category: Clothing_Shoes_and_Jewelry # Electronics/Clothing_Shoes_and_Jewelry
 emb_size: 32
 
 # Optimization params
 batch_size: 4096
-num_workers: 8 # cpu workets
+num_workers: 8 
 weight_decay: 1e-5
 lr: 1.0
 milestones: [300, 400]

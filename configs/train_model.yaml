@@ -1,5 +1,5 @@
 # Data params
-data_dir: /home/koby/datasets/amazon_dataset 
+data_dir: /data/amazon_dataset"
 category: Clothing_Shoes_and_Jewelry
 cf_vector_base_dir: ../outputs/train_autoencoder_Electronics_20210913_005225
 
@@ -13,15 +13,14 @@ is_use_cf_bias: true
 labeled_ratio: 1.0 # The ratio fo the traninig set to contain label
 
 # Optimization params
+is_pretrained: true
 batch_size: 256
 weight_decay: 1e-4
 cf_weight: 0.0 # The loss weight for cf vectors
-is_pretrained: true
 unfreeze_backbone_at_epoch: 1.0 # Epoch at which the backbone will be unfreezed.
 backbone_initial_lr: 1e-1 # Inital learning rate for the backbone.
 backbone_lr_multiplicative: 10 # Scheduling function for increasing backbone learning rate.
 lr: 1e-1
-train_set_repeat: 5 # each is trainning 1 + train_set_repeat times with the dataloder
 milestones: [10, 14] # effective milestones: train_set_repeat * milestones
 epochs: 15 # effective epochs: train_set_repeat * epochs
 print_interval: 1

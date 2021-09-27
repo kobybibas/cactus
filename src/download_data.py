@@ -32,9 +32,9 @@ def download_categroy(
     ]
 
     for url, dst in [(url_reviews, dst_review), (url_meta, dst_meta)]:
+        logger.info(f'download_categroy: {url=}')
         data_downloader.download_url(url, f"{dst}.gz")
         data_downloader.ungzip_file(path_src=f"{dst}.gz", path_dst=dst)
-
     return dst_review, dst_meta
 
 
