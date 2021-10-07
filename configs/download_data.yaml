@@ -1,7 +1,6 @@
 data_dir: /data/amazon_dataset
 is_debug: false
 is_override: false
-
 base_url: "http://snap.stanford.edu/data/amazon/productGraph/categoryFiles/"
 category_list:
   - "Electronics"

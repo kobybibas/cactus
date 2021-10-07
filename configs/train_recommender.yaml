@@ -1,0 +1,21 @@
+# Data params
+data_dir: /data/amazon_dataset
+category: Clothing_Shoes_and_Jewelry
+emb_size: [128]
+bottleneck_size: 16
+test_size: 0.2
+
+# Optimization params
+batch_size: 6042
+lr: 0.01
+n_epochs: 100
+beta: 1.0
+
+# Flow params
+seed: 1234
+top_k_list: [10, 20, 50]
+gpu: 0
+
+hydra:
+  run:
+    dir: ../outputs/train_recommender_${category}_${now:%Y%m%d_%H%M%S}

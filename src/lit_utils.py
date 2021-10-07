@@ -7,6 +7,9 @@ import torch.nn as nn
 import torchmetrics
 import torchvision.models as models
 
+import numpy as np
+from sklearn.metrics import roc_auc_score
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,9 +54,10 @@ class LitModel(pl.LightningModule):
         self, num_target_classes: int, cf_vector_dim: int, cfg, label_weights=None
     ):
         super().__init__()
+        self.num_target_classes = num_target_classes
         self.save_hyperparameters()
 
-        self.criterion = nn.CrossEntropyLoss(reduction="none")
+        self.criterion = nn.BCEWithLogitsLoss(reduction="none")
 
         self.cfg = cfg
         self.train_acc_metric, self.val_acc_metric = (
@@ -64,6 +68,7 @@ class LitModel(pl.LightningModule):
             "train": self.train_acc_metric,
             "val": self.val_acc_metric,
         }
+
         self.label_weights = label_weights
 
         # Define the backbone
@@ -107,11 +112,16 @@ class LitModel(pl.LightningModule):
     def _loss_helper(self, batch, phase: str):
         assert phase in ["train", "val"]
 
-        imgs, labels, is_labeled, cf_vectors = batch
+        (
+            imgs,
+            cf_vectors,
+            labels,
+            is_labeled,
+        ) = batch
         y_hat, cf_hat = self(imgs)
 
         # Compute calssification loss
-        loss_calssification = self.criterion(y_hat.squeeze(), labels.squeeze())[
+        loss_calssification = self.criterion(y_hat.squeeze(), labels.float().squeeze())[
             is_labeled
         ].mean()
 
@@ -132,19 +142,21 @@ class LitModel(pl.LightningModule):
             else:
                 loss = loss.mean()
 
-        preds = torch.argmax(y_hat, dim=1)
-        acc = self.acc_metric[phase](preds, labels).item()
+        preds = torch.sigmoid(y_hat)
+        # acc = self.acc_metric[phase](preds, labels).item()
+        # self.acc_metric[phase](preds, labels).item()
+
+        # acc = self.acc_metric[phase](preds, labels).item()
 
         res_dict = {
             "loss": loss,
-            f"loss/{phase}": loss,
-            f"acc/{phase}": acc,
+            f"loss/{phase}": loss.detach(),
             f"num_imgs/{phase}": len(imgs),
-            f"loss_classification/{phase}": loss_calssification,
-            f"loss_cf/{phase}": loss_cf,
+            f"loss_classification/{phase}": loss_calssification.detach(),
+            f"loss_cf/{phase}": loss_cf.detach(),
             f"num_cf_items/{phase}": num_cf_items,
             f"is_labeled_num/{phase}": is_labeled.sum(),
-            f"cf_hat_var/{phase}": cf_hat_var,
+            f"cf_hat_var/{phase}": cf_hat_var.detach(),
         }
         self.log_dict(
             res_dict,
@@ -153,14 +165,28 @@ class LitModel(pl.LightningModule):
             on_step=phase == "train",
             on_epoch=True,
         )
+
+        res_dict["labels"] = labels.cpu().detach().numpy()
+        res_dict["preds"] = preds.cpu().detach().numpy()
         return res_dict
 
     def epoch_end_helper(self, outputs, phase: str):
         assert phase in ["train", "val"]
         loss = torch.mean(torch.stack([out["loss"] for out in outputs])).item()
-        acc = self.acc_metric[phase].compute().item()
+
+        preds = np.vstack([out["preds"] for out in outputs])
+        labels = np.vstack([out["labels"] for out in outputs])
+
+        auroc = roc_auc_score(labels, preds)
+        self.log_dict(
+            {f"auroc/{phase}": auroc},
+            logger=True,
+            on_epoch=True,
+        )
+
+        loss, auroc = np.round([loss, auroc],3)
         logger.info(
-            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, acc]=}"
+            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, auroc]=}"
         )
 
     def training_step(self, batch, batch_idx):

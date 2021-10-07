@@ -1,0 +1,10 @@
+# Data params
+data_dir: /data/amazon_dataset
+category: Clothing_Shoes_and_Jewelry
+toplevel_label: "Clothing, Shoes & Jewelry"
+
+num_samples_threshold: 20
+
+hydra:
+  run:
+    dir: ../outputs/process_label_${category}_${now:%Y%m%d_%H%M%S}
