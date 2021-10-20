@@ -1,75 +1,31 @@
 import logging
-import types
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torchmetrics
 import torchvision.models as models
-
-import numpy as np
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import (accuracy_score, average_precision_score, f1_score,
+                             roc_auc_score)
 
 logger = logging.getLogger(__name__)
 
 
-def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
-    # See note [TorchScript super()]
-    x = self.conv1(x)
-    x = self.bn1(x)
-    x = self.relu(x)
-    x = self.maxpool(x)
-
-    x = self.layer1(x)
-    x = self.layer2(x)
-    x = self.layer3(x)
-    x = self.layer4(x)
-
-    x = self.avgpool(x)
-    x = torch.flatten(x, 1)
-
-    y_hat = self.fc(x)
-
-    # CF layer
-    cf_hat = self.cf_layers(x)
-
-    return y_hat, cf_hat
-
-
-def get_resetnet18(num_classes: int, is_pretrained: bool = False):
-    resnet18 = models.resnet18(pretrained=is_pretrained)
-    resnet18.fc = torch.nn.Linear(in_features=512, out_features=num_classes, bias=True)
-
-    # Adding prediction of CF vector
-    cf_layers = nn.Sequential(
-        nn.Linear(512, 128), nn.ReLU(), nn.Linear(128, 64), nn.ReLU(), nn.Linear(64, 32)
-    )
-    resnet18.cf_layers = cf_layers
-    resnet18._forward_impl = types.MethodType(_forward_impl, resnet18)
-    return resnet18
-
-
 class LitModel(pl.LightningModule):
     def __init__(
-        self, num_target_classes: int, cf_vector_dim: int, cfg, label_weights=None
+        self,
+        num_target_classes: int,
+        cf_vector_dim: int,
+        cfg,
+        pos_weight=None,
     ):
         super().__init__()
+        self.cfg = cfg
         self.num_target_classes = num_target_classes
         self.save_hyperparameters()
 
-        self.criterion = nn.BCEWithLogitsLoss(reduction="none")
-
-        self.cfg = cfg
-        self.train_acc_metric, self.val_acc_metric = (
-            torchmetrics.Accuracy(),
-            torchmetrics.Accuracy(),
-        )  # Explicit define in  self so lightning handle device
-        self.acc_metric = {
-            "train": self.train_acc_metric,
-            "val": self.val_acc_metric,
-        }
-
-        self.label_weights = label_weights
+        pos_weight = torch.tensor(pos_weight) if pos_weight is not None else None
+        self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
         # Define the backbone
         backbone = models.resnet18(pretrained=True)
@@ -81,26 +37,36 @@ class LitModel(pl.LightningModule):
         self.classifier = nn.Linear(num_filters, num_target_classes)
 
         # Define the cf vector predictor
+        # self.cf_layers = nn.Sequential(
+        #     nn.BatchNorm1d(num_filters),
+        #     nn.Linear(num_filters, 128),
+        #     nn.BatchNorm1d(128),
+        #     nn.ReLU(),
+        #     nn.Linear(128, cf_vector_dim),
+        # )
         self.cf_layers = nn.Sequential(
             nn.BatchNorm1d(num_filters),
-            nn.Linear(num_filters, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Linear(128, cf_vector_dim),
+            nn.Linear(num_filters, cf_vector_dim),
         )
         logger.info(self)
 
     def criterion_cf(self, pred, target, cf_topk_loss_ratio: float):
-        # Dim is as the len of the batch. the mean is for the cf vector dimentsion (32/33).
+        # Dim is as the len of the batch. the mean is for the cf vector dimentsion (64).
         loss_reduction_none = nn.functional.mse_loss(
             pred, target, reduction="none"
-        ).mean(dim=-1)
+        ).mean(dim=-1) + nn.functional.l1_loss(pred, target, reduction="none").mean(
+            dim=-1
+        )
 
         # Take items with lowest loss
-        num_cf_items = int(cf_topk_loss_ratio * len(loss_reduction_none))
-        loss = torch.topk(
-            loss_reduction_none, k=num_cf_items, largest=False, sorted=False
-        )[0].mean()
+        if cf_topk_loss_ratio < 1.0:
+            num_cf_items = int(cf_topk_loss_ratio * len(loss_reduction_none))
+            loss = torch.topk(
+                loss_reduction_none, k=num_cf_items, largest=False, sorted=False
+            )[0].mean()
+        else:
+            num_cf_items = len(loss_reduction_none)
+            loss = loss_reduction_none.mean()
         return loss, num_cf_items
 
     def forward(self, x):
@@ -121,9 +87,8 @@ class LitModel(pl.LightningModule):
         y_hat, cf_hat = self(imgs)
 
         # Compute calssification loss
-        loss_calssification = self.criterion(y_hat.squeeze(), labels.float().squeeze())[
-            is_labeled
-        ].mean()
+        loss_calssification = self.criterion(y_hat.squeeze(), labels.float().squeeze())
+        loss_calssification = loss_calssification[is_labeled].mean()
 
         # Compute cf loss Take item with lowest loss
         cf_topk_loss_ratio = self.cfg.cf_topk_loss_ratio if phase == "train" else 1.0
@@ -134,24 +99,9 @@ class LitModel(pl.LightningModule):
 
         # Combine loss
         loss = loss_calssification + self.cfg.cf_weight * loss_cf
-        if False:  # TODO: loss weight based on labels
-            if self.label_weights is not None:
-                weight_batch = self.label_weights[labels]
-                weight_batch /= weight_batch.sum()
-                loss = (loss * weight_batch).sum()
-            else:
-                loss = loss.mean()
-
-        preds = torch.sigmoid(y_hat)
-        # acc = self.acc_metric[phase](preds, labels).item()
-        # self.acc_metric[phase](preds, labels).item()
-
-        # acc = self.acc_metric[phase](preds, labels).item()
 
         res_dict = {
-            "loss": loss,
             f"loss/{phase}": loss.detach(),
-            f"num_imgs/{phase}": len(imgs),
             f"loss_classification/{phase}": loss_calssification.detach(),
             f"loss_cf/{phase}": loss_cf.detach(),
             f"num_cf_items/{phase}": num_cf_items,
@@ -162,12 +112,14 @@ class LitModel(pl.LightningModule):
             res_dict,
             prog_bar=True,
             logger=True,
-            on_step=phase == "train",
+            on_step=False,
             on_epoch=True,
         )
 
+        preds = torch.sigmoid(y_hat)
         res_dict["labels"] = labels.cpu().detach().numpy()
         res_dict["preds"] = preds.cpu().detach().numpy()
+        res_dict["loss"] = loss
         return res_dict
 
     def epoch_end_helper(self, outputs, phase: str):
@@ -177,16 +129,28 @@ class LitModel(pl.LightningModule):
         preds = np.vstack([out["preds"] for out in outputs])
         labels = np.vstack([out["labels"] for out in outputs])
 
+        # Metrics
         auroc = roc_auc_score(labels, preds)
+        ap = average_precision_score(labels, preds)
+        acc = accuracy_score(labels, preds > 0.5)
+        f1 = f1_score(labels, preds > 0.5, average="macro")
+
         self.log_dict(
-            {f"auroc/{phase}": auroc},
+            {
+                f"auroc/{phase}": auroc,
+                f"ap/{phase}": ap,
+                f"acc/{phase}": acc,
+                f"f1/{phase}": f1,
+            },
             logger=True,
             on_epoch=True,
+            on_step=False,
+            prog_bar=False,
         )
 
-        loss, auroc = np.round([loss, auroc],3)
+        loss, acc, auroc, ap, f1 = np.round([loss, acc, auroc, ap, f1], 3)
         logger.info(
-            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, auroc]=}"
+            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss,acc, auroc, ap, f1]=}"
         )
 
     def training_step(self, batch, batch_idx):

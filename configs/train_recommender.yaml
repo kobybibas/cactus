@@ -1,12 +1,13 @@
 # Data params
 data_dir: /data/amazon_dataset
 category: Clothing_Shoes_and_Jewelry
-emb_size: [128]
-bottleneck_size: 16
-test_size: 0.2
+emb_size: [64]
+bottleneck_size: 32
+test_size: 0.1
+user_based: true
 
 # Optimization params
-batch_size: 6042
+batch_size: 4096
 lr: 0.01
 n_epochs: 100
 beta: 1.0

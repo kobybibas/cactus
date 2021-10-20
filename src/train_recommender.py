@@ -9,10 +9,10 @@ import pandas as pd
 import torch
 from cornac.eval_methods import RatioSplit
 from cornac.metrics import AUC
-from cornac.models import VAECF
 from omegaconf import DictConfig
 
 from recommender_utils import AmazonClothing, HitRate
+from vae_utils import VAECFWithBias
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def train_recommender(cfg: DictConfig):
     logger.info(os.getcwd())
 
     # Initalize dataset
-    dataset_h = AmazonClothing(cfg.data_dir,cfg.category)
+    dataset_h = AmazonClothing(cfg.data_dir, cfg.category, cfg.user_based)
     dataset = dataset_h.load_feedback()
     rs = RatioSplit(
         data=dataset,
@@ -39,7 +39,7 @@ def train_recommender(cfg: DictConfig):
     )
 
     # Initalize model
-    vaecf = VAECF(
+    vaecf = VAECFWithBias(
         k=cfg.bottleneck_size,
         autoencoder_structure=list(cfg.emb_size),
         act_fn="tanh",
@@ -63,14 +63,13 @@ def train_recommender(cfg: DictConfig):
     logger.info(f"Finish training in {time.time() -t0:.2f} sec")
     logger.info(vaecf.vae)
 
-    # Save item embeddings
-    out_path = osp.join(out_dir, "item_emb.pt")
-    logger.info(out_path)
-    torch.save(vaecf.vae.decoder.fc1.weight.detach().cpu(), out_path)
+    # Save vae model
+    out_path = osp.join(out_dir, "vae.pt")
+    torch.save(vaecf.vae.state_dict(), out_path)
 
+    # Save cf df
     embs = vaecf.vae.decoder.fc1.weight.detach().cpu()
     df = pd.DataFrame({"asin": list(rs.train_set.item_ids), "embs": embs.tolist()})
-
     out_path = osp.join(out_dir, "cf_df.pkl")
     logger.info(out_path)
     df.to_pickle(out_path)

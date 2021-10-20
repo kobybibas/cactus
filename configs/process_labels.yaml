@@ -2,6 +2,8 @@
 data_dir: /data/amazon_dataset
 category: Clothing_Shoes_and_Jewelry
 toplevel_label: "Clothing, Shoes & Jewelry"
+train_set_ratio: 0.7
+min_label_count: 5
 
 num_samples_threshold: 20
 

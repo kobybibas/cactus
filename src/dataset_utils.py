@@ -6,7 +6,6 @@ import pandas as pd
 import torch
 from torchvision import transforms
 from torchvision.datasets.folder import default_loader
-from sklearn.model_selection import train_test_split
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -44,6 +43,7 @@ class DfDatasetWithCF(Dataset):
         return image, cf_vector, target, is_labeled
 
 
+# Transformation as ImageNet training
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 train_transform = transforms.Compose(
     [
@@ -66,46 +66,41 @@ test_transform = transforms.Compose(
 
 
 def get_datasets(
-    label_df_path: str,
+    df_train_path: str,
+    df_test_path: str,
     cf_vector_df_path: str,
     labeled_ratio: float = 1.0,
-    train_set_ratio: float = 0.8,
 ):
 
     t0 = time.time()
-    label_df = pd.read_pickle(label_df_path)
+    df_train = pd.read_pickle(df_train_path)
+    df_test = pd.read_pickle(df_test_path)
     cf_df = pd.read_pickle(cf_vector_df_path)
-    logger.info(f"Loaded df in {time.time() -t0 :.2f}")
-
-    # Join dfs
-    t0 = time.time()
-    df = pd.merge(label_df, cf_df, on=["asin"], how="inner")
     logger.info(
-        f"merge df in {time.time() -t0 :.2f}. {len(df)=} {len(label_df)=} {len(cf_df)=}"
+        f"Loaded df in {time.time() -t0 :.2f} sec. {len(df_train)=} {len(df_test)=} {len(cf_df)=}"
     )
 
+    # Add CF vectors
+    t0 = time.time()
+    df_train = pd.merge(df_train, cf_df, on=["asin"], how="inner")
+    df_test = pd.merge(df_test, cf_df, on=["asin"], how="inner")
+    logger.info(
+        f"merge df in {time.time() -t0 :.2f} sec. {len(df_train)=} {len(df_test)=} {len(cf_df)=}"
+    )
+
+    # Define positive weight: Since positives are much less than negatives, increase their weights
+    train_labels = np.array(df_train.label_vec.to_list())
+    pos_weight = len(train_labels)/train_labels.sum(axis=0)
+
     # Construct dataset
-    n_iter = 0
-    min_label_count = 0
-    while min_label_count < 2:
-        df_train, df_test = train_test_split(df, train_size=train_set_ratio)
-
-        test_labels = np.array(df_test.label_vec.to_list())
-        train_labels = np.array(df_test.label_vec.to_list())
-        min_label_count = min(
-            train_labels.sum(axis=0).min(), test_labels.sum(axis=0).min()
-        )
-        logger.info(f"[{n_iter}] train-test split {min_label_count=}")
-        n_iter += 1
-
-    df_train["is_labeled"] = torch.rand(len(df_train)) > 1 - labeled_ratio
+    df_train["is_labeled"] = torch.rand(len(df_train)) > 1.0 - labeled_ratio
     df_test["is_labeled"] = True
-
     train_dataset = DfDatasetWithCF(df_train, transform=train_transform)
     test_dataset = DfDatasetWithCF(df_test, transform=test_transform)
 
-    num_classes = len(df["label_vec"].iloc[0])
-    cf_vector_dim = len(df["embs"].iloc[0])
+    # Get metadata
+    num_classes = len(df_train["label_vec"].iloc[0])
+    cf_vector_dim = len(df_train["embs"].iloc[0])
 
     dataset_meta = {
         "train_set_size": len(df_train),
@@ -114,4 +109,4 @@ def get_datasets(
         "cf_vector_dim": cf_vector_dim,
     }
 
-    return train_dataset, test_dataset, dataset_meta
+    return train_dataset, test_dataset, dataset_meta, pos_weight

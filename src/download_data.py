@@ -6,8 +6,9 @@ from typing import Tuple
 
 import hydra
 import pandas as pd
-from data_utils import DataHelper
 from tqdm import tqdm
+
+from data_utils import DataHelper
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def download_categroy(
     ]
 
     for url, dst in [(url_reviews, dst_review), (url_meta, dst_meta)]:
-        logger.info(f'download_categroy: {url=}')
+        logger.info(f"download_categroy: {url=}")
         data_downloader.download_url(url, f"{dst}.gz")
         data_downloader.ungzip_file(path_src=f"{dst}.gz", path_dst=dst)
     return dst_review, dst_meta
@@ -45,7 +46,6 @@ def get_download_url(base_url: str, category: str) -> Tuple[str, str]:
 
 
 def filter_meta_df(df_meta: pd.DataFrame, df_review: pd.DataFrame):
-
     # Keep only meta with reviews
     meta_df_filterd = df_meta[df_meta["asin"].isin(df_review["asin"].unique())]
 

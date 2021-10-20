@@ -20,22 +20,39 @@ class HitRate(MeasureAtK):
 
 class AmazonClothing:
     def __init__(
-        self, data_dir: str, category: str = "Clothing_Shoes_and_Jewelry"
+        self,
+        data_dir: str,
+        category: str = "Clothing_Shoes_and_Jewelry",
+        user_based: bool = True,
     ) -> None:
         self.data_dir = data_dir
         self.category = category
-        self.review_path = osp.join(self.data_dir, f"reviews_{category}.pkl")
-        self.rating_path = osp.join(self.data_dir, f"rating_{category}.txt")
-        if not osp.exists(self.rating_path):
-            self.convert_reaview_pkl_to_rating()
+        self.user_vec_as_input = user_based
 
-    def convert_reaview_pkl_to_rating(self):
+        self.review_path = osp.join(self.data_dir, f"reviews_{category}.pkl")
+
+        if self.user_vec_as_input:
+            self.rating_path = osp.join(
+                self.data_dir, f"rating_{category}_user_based.txt"
+            )
+        else:
+            self.rating_path = osp.join(
+                self.data_dir, f"rating_{category}_item_based.txt"
+            )
+
+        if not osp.exists(self.rating_path):
+            self.convert_review_pkl_to_rating()
+
+    def convert_review_pkl_to_rating(self):
         review_df = pd.read_pickle(
             osp.join(self.data_dir, f"reviews_{self.category}.pkl")
         )
 
         # Algin to rating.txt format
-        review_df = review_df[["reviewerID", "asin", "overall"]]
+        if self.user_vec_as_input:
+            review_df = review_df[["reviewerID", "asin", "overall"]]
+        else:
+            review_df = review_df[["asin", "reviewerID", "overall"]]
 
         review_df.to_csv(self.rating_path, sep="\t", index=False, header=False)
 
