@@ -28,7 +28,7 @@ class LitModel(pl.LightningModule):
         self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
         # Define the backbone
-        backbone = models.resnet18(pretrained=True)
+        backbone = models.resnet18(pretrained=cfg['is_pretrained'])
         layers = list(backbone.children())[:-1]
         self.backbone = nn.Sequential(*layers)
 
@@ -37,17 +37,17 @@ class LitModel(pl.LightningModule):
         self.classifier = nn.Linear(num_filters, num_target_classes)
 
         # Define the cf vector predictor
-        # self.cf_layers = nn.Sequential(
-        #     nn.BatchNorm1d(num_filters),
-        #     nn.Linear(num_filters, 128),
-        #     nn.BatchNorm1d(128),
-        #     nn.ReLU(),
-        #     nn.Linear(128, cf_vector_dim),
-        # )
         self.cf_layers = nn.Sequential(
             nn.BatchNorm1d(num_filters),
-            nn.Linear(num_filters, cf_vector_dim),
+            nn.Linear(num_filters, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, cf_vector_dim),
         )
+        # self.cf_layers = nn.Sequential(
+        #     nn.BatchNorm1d(num_filters),
+        #     nn.Linear(num_filters, cf_vector_dim),
+        # )
         logger.info(self)
 
     def criterion_cf(self, pred, target, cf_topk_loss_ratio: float):
@@ -91,14 +91,14 @@ class LitModel(pl.LightningModule):
         loss_calssification = loss_calssification[is_labeled].mean()
 
         # Compute cf loss Take item with lowest loss
-        cf_topk_loss_ratio = self.cfg.cf_topk_loss_ratio if phase == "train" else 1.0
+        cf_topk_loss_ratio = self.cfg['cf_topk_loss_ratio'] if phase == "train" else 1.0
         loss_cf, num_cf_items = self.criterion_cf(
             cf_hat.squeeze(), cf_vectors.squeeze(), cf_topk_loss_ratio
         )
         cf_hat_var = cf_hat.var(dim=-1).mean()
 
         # Combine loss
-        loss = loss_calssification + self.cfg.cf_weight * loss_cf
+        loss = loss_calssification + self.cfg['cf_weight'] * loss_cf
 
         res_dict = {
             f"loss/{phase}": loss.detach(),
