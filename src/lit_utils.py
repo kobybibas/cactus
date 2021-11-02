@@ -5,8 +5,12 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from sklearn.metrics import (accuracy_score, average_precision_score, f1_score,
-                             roc_auc_score)
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    f1_score,
+    roc_auc_score,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,7 @@ class LitModel(pl.LightningModule):
         self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
         # Define the backbone
-        backbone = models.resnet18(pretrained=cfg['is_pretrained'])
+        backbone = models.resnet18(pretrained=cfg["is_pretrained"])
         layers = list(backbone.children())[:-1]
         self.backbone = nn.Sequential(*layers)
 
@@ -57,6 +61,7 @@ class LitModel(pl.LightningModule):
         ).mean(dim=-1) + nn.functional.l1_loss(pred, target, reduction="none").mean(
             dim=-1
         )
+        loss_reduction_none = torch.exp(loss_reduction_none) - 1.0 # TODO: experimneting with exp
 
         # Take items with lowest loss
         if cf_topk_loss_ratio < 1.0:
@@ -68,6 +73,15 @@ class LitModel(pl.LightningModule):
             num_cf_items = len(loss_reduction_none)
             loss = loss_reduction_none.mean()
         return loss, num_cf_items
+
+    # def criterion_cf(self, pred, target, cf_topk_loss_ratio: float):
+    #     # Dim is as the len of the batch. the mean is for the cf vector dimentsion (64).
+    #     # loss = nn.CosineSimilarity(dim=1, eps=1e-6)(
+    #     #     pred, target
+    #     # ).abs().mean(dim=-1)
+    #     loss = (pred*target).sum(axis=1).abs().mean()
+    #     num_cf_items = len(pred)
+    #     return loss, num_cf_items
 
     def forward(self, x):
         representations = self.backbone(x).flatten(1)
@@ -91,14 +105,14 @@ class LitModel(pl.LightningModule):
         loss_calssification = loss_calssification[is_labeled].mean()
 
         # Compute cf loss Take item with lowest loss
-        cf_topk_loss_ratio = self.cfg['cf_topk_loss_ratio'] if phase == "train" else 1.0
+        cf_topk_loss_ratio = self.cfg["cf_topk_loss_ratio"] if phase == "train" else 1.0
         loss_cf, num_cf_items = self.criterion_cf(
             cf_hat.squeeze(), cf_vectors.squeeze(), cf_topk_loss_ratio
         )
         cf_hat_var = cf_hat.var(dim=-1).mean()
 
         # Combine loss
-        loss = loss_calssification + self.cfg['cf_weight'] * loss_cf
+        loss = loss_calssification + self.cfg["cf_weight"] * loss_cf
 
         res_dict = {
             f"loss/{phase}": loss.detach(),
@@ -135,6 +149,15 @@ class LitModel(pl.LightningModule):
         acc = accuracy_score(labels, preds > 0.5)
         f1 = f1_score(labels, preds > 0.5, average="macro")
 
+        # recall@k
+        recall_dict,hit_dict = {}, {}
+        for k in self.cfg.recall_at_k:
+            recall_rate, hit_rate = self.compute_recall_and_hit_rate_at_k(
+                preds, labels, k=k
+            )
+            recall_dict[f"recall@{k}/{phase}"] = recall_rate
+            hit_dict[f"hit_rate@{k}/{phase}"] = hit_rate
+
         self.log_dict(
             {
                 f"auroc/{phase}": auroc,
@@ -147,11 +170,19 @@ class LitModel(pl.LightningModule):
             on_step=False,
             prog_bar=False,
         )
+        self.log_dict(
+            {**recall_dict, **hit_dict} ,
+            logger=True,
+            on_epoch=True,
+            on_step=False,
+            prog_bar=False,
+        )
 
         loss, acc, auroc, ap, f1 = np.round([loss, acc, auroc, ap, f1], 3)
         logger.info(
             f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss,acc, auroc, ap, f1]=}"
         )
+        logger.info([f'{key}={np.round(value,3)}' for key, value in recall_dict.items()])
 
     def training_step(self, batch, batch_idx):
         return self._loss_helper(batch, phase="train")
@@ -175,3 +206,25 @@ class LitModel(pl.LightningModule):
             optimizer, milestones=self.cfg["milestones"]
         )
         return [optimizer], [lr_scheduler]
+
+    def compute_recall_and_hit_rate_at_k(self,preds, labels, k: int = 5):
+        recall_sum, hit_sum = 0, 0
+        items = 0
+        for pred, label in zip(torch.tensor(preds), torch.tensor(labels)):
+            _, pred_idx = torch.topk(pred, k=k)
+            label_idx = torch.where(label == 1)[0]
+
+            if len(label_idx) == 0:
+                continue
+
+            recall_i = sum(el in pred_idx for el in label_idx) / len(label_idx)
+            recall_sum += recall_i
+
+            hit_i = sum(el in label_idx for el in pred_idx)
+            hit_sum += hit_i
+
+            items += 1
+
+        recall_rate = recall_sum / items
+        hit_rate = hit_sum / items
+        return recall_rate, hit_rate
