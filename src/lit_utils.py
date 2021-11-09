@@ -48,20 +48,18 @@ class LitModel(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(128, cf_vector_dim),
         )
-        # self.cf_layers = nn.Sequential(
-        #     nn.BatchNorm1d(num_filters),
-        #     nn.Linear(num_filters, cf_vector_dim),
-        # )
         logger.info(self)
 
-    def criterion_cf(self, pred, target, cf_topk_loss_ratio: float):
+    def criterion_cf(
+        self, pred: torch.Tensor, target: torch.Tensor, cf_topk_loss_ratio: float
+    ):
         # Dim is as the len of the batch. the mean is for the cf vector dimentsion (64).
         loss_reduction_none = nn.functional.mse_loss(
             pred, target, reduction="none"
         ).mean(dim=-1) + nn.functional.l1_loss(pred, target, reduction="none").mean(
             dim=-1
         )
-        loss_reduction_none = torch.exp(loss_reduction_none) - 1.0 # TODO: experimneting with exp
+        loss_reduction_none = torch.exp(loss_reduction_none) - 1.0
 
         # Take items with lowest loss
         if cf_topk_loss_ratio < 1.0:
@@ -74,14 +72,13 @@ class LitModel(pl.LightningModule):
             loss = loss_reduction_none.mean()
         return loss, num_cf_items
 
-    # def criterion_cf(self, pred, target, cf_topk_loss_ratio: float):
-    #     # Dim is as the len of the batch. the mean is for the cf vector dimentsion (64).
-    #     # loss = nn.CosineSimilarity(dim=1, eps=1e-6)(
-    #     #     pred, target
-    #     # ).abs().mean(dim=-1)
-    #     loss = (pred*target).sum(axis=1).abs().mean()
-    #     num_cf_items = len(pred)
-    #     return loss, num_cf_items
+    def criterion_cf_triplet(self, cf_hat: torch.Tensor, cf_hat_pos: torch.Tensor):
+        num_cf_items = len(cf_hat)
+        cf_hat_neg = torch.roll(cf_hat_pos, shifts=1, dims=0)
+        loss = nn.functional.triplet_margin_loss(
+            cf_hat, cf_hat_pos, cf_hat_neg, margin=0.2, p=2
+        )
+        return loss, num_cf_items
 
     def forward(self, x):
         representations = self.backbone(x).flatten(1)
@@ -94,11 +91,13 @@ class LitModel(pl.LightningModule):
 
         (
             imgs,
+            imgs_pos,
             cf_vectors,
             labels,
             is_labeled,
         ) = batch
         y_hat, cf_hat = self(imgs)
+        _, cf_hat_pos = self(imgs_pos)
 
         # Compute calssification loss
         loss_calssification = self.criterion(y_hat.squeeze(), labels.float().squeeze())
@@ -106,21 +105,31 @@ class LitModel(pl.LightningModule):
 
         # Compute cf loss Take item with lowest loss
         cf_topk_loss_ratio = self.cfg["cf_topk_loss_ratio"] if phase == "train" else 1.0
-        loss_cf, num_cf_items = self.criterion_cf(
-            cf_hat.squeeze(), cf_vectors.squeeze(), cf_topk_loss_ratio
-        )
+        if self.cfg.cf_loss_type != "triplet":
+            loss_cf, num_cf_items = self.criterion_cf(
+                cf_hat.squeeze(), cf_vectors.squeeze(), cf_topk_loss_ratio
+            )
+        else:
+            loss_cf, num_cf_items = self.criterion_cf_triplet(
+                cf_hat.squeeze(), cf_hat_pos.squeeze()
+            )
+
         cf_hat_var = cf_hat.var(dim=-1).mean()
 
         # Combine loss
-        loss = loss_calssification + self.cfg["cf_weight"] * loss_cf
+        loss = (
+            self.cfg["label_weight"] * loss_calssification
+            + self.cfg["cf_weight"] * loss_cf
+        )
 
+        cf_weight = self.cfg["cf_weight"]
         res_dict = {
-            f"loss/{phase}": loss.detach(),
-            f"loss_classification/{phase}": loss_calssification.detach(),
-            f"loss_cf/{phase}": loss_cf.detach(),
-            f"num_cf_items/{phase}": num_cf_items,
-            f"is_labeled_num/{phase}": is_labeled.sum(),
-            f"cf_hat_var/{phase}": cf_hat_var.detach(),
+            f"loss_{cf_weight=}/{phase}": loss.detach(),
+            f"loss_classification_{cf_weight=}/{phase}": loss_calssification.detach(),
+            f"loss_cf_{cf_weight=}/{phase}": loss_cf.detach(),
+            f"num_cf_items_{cf_weight=}/{phase}": num_cf_items,
+            f"is_labeled_num_{cf_weight=}/{phase}": is_labeled.sum(),
+            f"cf_hat_var_{cf_weight=}/{phase}": cf_hat_var.detach(),
         }
         self.log_dict(
             res_dict,
@@ -150,8 +159,8 @@ class LitModel(pl.LightningModule):
         f1 = f1_score(labels, preds > 0.5, average="macro")
 
         # recall@k
-        recall_dict,hit_dict = {}, {}
-        for k in self.cfg.recall_at_k:
+        recall_dict, hit_dict = {}, {}
+        for k in self.cfg["recall_at_k"]:
             recall_rate, hit_rate = self.compute_recall_and_hit_rate_at_k(
                 preds, labels, k=k
             )
@@ -171,7 +180,7 @@ class LitModel(pl.LightningModule):
             prog_bar=False,
         )
         self.log_dict(
-            {**recall_dict, **hit_dict} ,
+            {**recall_dict, **hit_dict},
             logger=True,
             on_epoch=True,
             on_step=False,
@@ -180,9 +189,11 @@ class LitModel(pl.LightningModule):
 
         loss, acc, auroc, ap, f1 = np.round([loss, acc, auroc, ap, f1], 3)
         logger.info(
-            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss,acc, auroc, ap, f1]=}"
+            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, acc, auroc, ap, f1]=}"
         )
-        logger.info([f'{key}={np.round(value,3)}' for key, value in recall_dict.items()])
+        logger.info(
+            [f"{key}={np.round(value, 3)}" for key, value in recall_dict.items()]
+        )
 
     def training_step(self, batch, batch_idx):
         return self._loss_helper(batch, phase="train")
@@ -207,7 +218,7 @@ class LitModel(pl.LightningModule):
         )
         return [optimizer], [lr_scheduler]
 
-    def compute_recall_and_hit_rate_at_k(self,preds, labels, k: int = 5):
+    def compute_recall_and_hit_rate_at_k(self, preds, labels, k: int = 5):
         recall_sum, hit_sum = 0, 0
         items = 0
         for pred, label in zip(torch.tensor(preds), torch.tensor(labels)):
