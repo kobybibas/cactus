@@ -97,7 +97,6 @@ class LitModel(pl.LightningModule):
             is_labeled,
         ) = batch
         y_hat, cf_hat = self(imgs)
-        _, cf_hat_pos = self(imgs_pos)
 
         # Compute calssification loss
         loss_calssification = self.criterion(y_hat.squeeze(), labels.float().squeeze())
@@ -110,6 +109,7 @@ class LitModel(pl.LightningModule):
                 cf_hat.squeeze(), cf_vectors.squeeze(), cf_topk_loss_ratio
             )
         else:
+            _, cf_hat_pos = self(imgs_pos)
             loss_cf, num_cf_items = self.criterion_cf_triplet(
                 cf_hat.squeeze(), cf_hat_pos.squeeze()
             )

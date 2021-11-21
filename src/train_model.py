@@ -31,8 +31,8 @@ def train_model(cfg: DictConfig):
     logger.info(f"{torch.cuda.is_available()=}")
 
     # Set gpu for multirun experimnet: each experimnet with different GPU
-    if 'num' in HydraConfig.get().job:
-        gpu_id =  HydraConfig.get().job.num %  torch.cuda.device_count()
+    if "num" in HydraConfig.get().job:
+        gpu_id = HydraConfig.get().job.num % torch.cuda.device_count()
         logger.info(f"gpu id:{gpu_id}")
         cfg.gpu = gpu_id
 
@@ -71,15 +71,12 @@ def train_model(cfg: DictConfig):
         train_dataset,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
-        shuffle=True
-        # For hydra multirun: https://github.com/facebookresearch/hydra/issues/964#issuecomment-693227279 
-        # multiprocessing_context='fork' 
+        shuffle=True,
     )
     testloader = DataLoader(
         test_dataset,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
-        multiprocessing_context='fork'
     )
 
     # Load model

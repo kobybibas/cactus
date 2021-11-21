@@ -11,8 +11,8 @@ labeled_ratio: 1.0 # The ratio fo the traninig set to contain label
 recall_at_k: [3, 5, 10]
 # Optimization params
 is_pretrained: true # Use imagenet pre trained model
-cf_loss_type: triplet
-batch_size: 128
+cf_loss_type: exp # triplet/exp
+batch_size: 256
 weight_decay: 1e-5
 lr: 1e-1
 milestones: [55] 
@@ -26,22 +26,15 @@ cf_topk_loss_ratio: 1.0 # Consider only items with the lowest loss in the batch.
 is_debug: false
 gpu: 0
 
-# defaults:  
-#   - override hydra/launcher: joblib
-
 hydra:
   run:
     dir: ../outputs/train_model_${category}_${now:%Y%m%d_%H%M%S}
   sweep:
     dir: ../outputs/train_model_multirun_${category}_${now:%Y%m%d_%H%M%S}
-    subdir: train_model_${category}_${now:%Y%m%d_%H%M%S}_${hydra.job.num}
-  # launcher:
-  #   # override the number of jobs for joblib
-  #   n_jobs: 8
-
+    subdir: ${hydra.job.num}_cf_weight=${cf_weight}_labeled_ratio=${labeled_ratio}
 
 #  python train_model.py -m cf_weight=0.0,1.0,2.0,10.0,20.0
-#  python train_model.py -m cf_weight=0.0,2.0 labeled_ratio=0.5,0.6,0.7,0.8,0.9,1.0 
+#  python train_model.py -m cf_weight=0.0,2.0 labeled_ratio=0.4,0.6,0.8,0.9,1.0 
 #  python train_model.py cf_topk_loss_ratio=0.9
 #  python train_model.py -m cf_weight=1.0,2.0,10.0
 #  python train_model.py -m cf_weight=2.0 labeled_ratio=0.5,0.6,0.7,0.8,0.9

@@ -11,7 +11,6 @@ labeled_ratio: 1.0 # The ratio fo the traninig set to contain label
 
 # Optimization params
 batch_size: 128
-cf_loss_type: triplet
 
 # CF pretraining
 cf_training: 
@@ -24,6 +23,7 @@ cf_training:
   cf_weight: 1.0  # The loss weight for cf vectors
   label_weight: 0.0
   recall_at_k: []
+  cf_loss_type: triplet
 
 # Training with labels
 label_training: 
@@ -35,6 +35,7 @@ label_training:
   cf_weight: 0.0  # The loss weight for cf vectors
   label_weight: 1.0
   recall_at_k: [3, 5, 10]
+  cf_loss_type: triplet
 
 
 # Flow params
