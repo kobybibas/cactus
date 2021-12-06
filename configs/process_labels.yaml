@@ -1,12 +1,11 @@
 # Data params
 data_dir: /data/amazon_dataset
-category: Clothing_Shoes_and_Jewelry
-toplevel_label: "Clothing, Shoes & Jewelry"
+category: Toys_and_Games # Clothing_Shoes_and_Jewelry
 train_set_ratio: 0.7
-min_label_count: 5
+min_label_count: 3 # Minimum number of items for each label in training set and test set
 
-num_samples_threshold: 20
+num_samples_threshold: 10 # Minimum number of items per label. Otherwise remove leaf label
 
 hydra:
   run:
-    dir: ../outputs/process_label_${category}_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/${category}/process_label_${now:%Y%m%d_%H%M%S}

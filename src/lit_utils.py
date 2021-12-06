@@ -61,7 +61,7 @@ class LitModel(pl.LightningModule):
         )
         loss_reduction_none = torch.exp(loss_reduction_none) - 1.0
 
-        # Take items with lowest loss
+        # Take item_num with lowest loss
         if cf_topk_loss_ratio < 1.0:
             num_cf_items = int(cf_topk_loss_ratio * len(loss_reduction_none))
             loss = torch.topk(
@@ -83,8 +83,8 @@ class LitModel(pl.LightningModule):
     def forward(self, x):
         representations = self.backbone(x).flatten(1)
         y_hat = self.classifier(representations)
-        cf_hat_hat = self.cf_layers(representations)
-        return y_hat, cf_hat_hat
+        cf_hat = self.cf_layers(representations)
+        return y_hat, cf_hat
 
     def _loss_helper(self, batch, phase: str):
         assert phase in ["train", "val"]
@@ -102,7 +102,7 @@ class LitModel(pl.LightningModule):
         loss_calssification = self.criterion(y_hat.squeeze(), labels.float().squeeze())
         loss_calssification = loss_calssification[is_labeled].mean()
 
-        # Compute cf loss Take item with lowest loss
+        # Compute CF loss
         cf_topk_loss_ratio = self.cfg["cf_topk_loss_ratio"] if phase == "train" else 1.0
         if self.cfg.cf_loss_type != "triplet":
             loss_cf, num_cf_items = self.criterion_cf(
@@ -113,8 +113,6 @@ class LitModel(pl.LightningModule):
             loss_cf, num_cf_items = self.criterion_cf_triplet(
                 cf_hat.squeeze(), cf_hat_pos.squeeze()
             )
-
-        cf_hat_var = cf_hat.var(dim=-1).mean()
 
         # Combine loss
         loss = (
@@ -129,7 +127,6 @@ class LitModel(pl.LightningModule):
             f"loss_cf_{cf_weight=}/{phase}": loss_cf.detach(),
             f"num_cf_items_{cf_weight=}/{phase}": num_cf_items,
             f"is_labeled_num_{cf_weight=}/{phase}": is_labeled.sum(),
-            f"cf_hat_var_{cf_weight=}/{phase}": cf_hat_var.detach(),
         }
         self.log_dict(
             res_dict,
@@ -161,11 +158,8 @@ class LitModel(pl.LightningModule):
         # recall@k
         recall_dict, hit_dict = {}, {}
         for k in self.cfg["recall_at_k"]:
-            recall_rate, hit_rate = self.compute_recall_and_hit_rate_at_k(
-                preds, labels, k=k
-            )
+            recall_rate = self.compute_recall_at_k(preds, labels, k=k)
             recall_dict[f"recall@{k}/{phase}"] = recall_rate
-            hit_dict[f"hit_rate@{k}/{phase}"] = hit_rate
 
         self.log_dict(
             {
@@ -218,24 +212,22 @@ class LitModel(pl.LightningModule):
         )
         return [optimizer], [lr_scheduler]
 
-    def compute_recall_and_hit_rate_at_k(self, preds, labels, k: int = 5):
-        recall_sum, hit_sum = 0, 0
-        items = 0
+    def compute_recall_at_k(self, preds: np.ndarray, labels: np.ndarray, k: int = 5):
+        recall_sum, item_num = 0, 0
         for pred, label in zip(torch.tensor(preds), torch.tensor(labels)):
-            _, pred_idx = torch.topk(pred, k=k)
-            label_idx = torch.where(label == 1)[0]
+            _, pred_idx = torch.topk(pred, k=k)  # The predicted labels
+            label_idx = torch.where(label == 1)[0]  # The ground truth labels
 
+            # In case there are no labels
             if len(label_idx) == 0:
                 continue
 
+            # Recal per item
             recall_i = sum(el in pred_idx for el in label_idx) / len(label_idx)
+            
             recall_sum += recall_i
+            item_num += 1
 
-            hit_i = sum(el in label_idx for el in pred_idx)
-            hit_sum += hit_i
-
-            items += 1
-
-        recall_rate = recall_sum / items
-        hit_rate = hit_sum / items
-        return recall_rate, hit_rate
+        # Average recall
+        recall_rate = recall_sum / item_num
+        return recall_rate

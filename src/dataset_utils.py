@@ -25,7 +25,7 @@ class DfDatasetWithCF(Dataset):
     def __getitem__(self, index):
         row = self.df.iloc[index]
         img_path = row["img_path"]
-        pos_img_path = row["pos_img_path"]
+        pos_img_path = row["pos_img_path"] if "pos_img_path" in row else row["img_path"]
         cf_vector = row["embs"]
         target = row["label_vec"]
         is_labeled = row["is_labeled"]
@@ -43,6 +43,7 @@ class DfDatasetWithCF(Dataset):
 
         if self.target_transform is not None:
             target = self.target_transform(target)
+
         return image, image_pos, cf_vector, target, is_labeled
 
 
@@ -92,30 +93,35 @@ def get_datasets(
     )
 
     # Add positive CF
-    pos_img_path = pd.merge(
-        df_train[["asin", "pos_asin"]],
-        pd.concat((df_train[["asin", "img_path"]], df_test[["asin", "img_path"]])),
-        left_on=["pos_asin"],
-        right_on=["asin"],
-        how="left",
-    )["img_path"]
-    df_train["pos_img_path"] = pos_img_path
-    pos_img_path = pd.merge(
-        df_test[["asin", "pos_asin"]],
-        pd.concat((df_train[["asin", "img_path"]], df_test[["asin", "img_path"]])),
-        left_on=["pos_asin"],
-        right_on=["asin"],
-        how="left",
-    )["img_path"]
-    df_test["pos_img_path"] = pos_img_path
+    if "pos_asin" in df_train.columns:
+        pos_img_path = pd.merge(
+            df_train[["asin", "pos_asin"]],
+            pd.concat((df_train[["asin", "img_path"]], df_test[["asin", "img_path"]])),
+            left_on=["pos_asin"],
+            right_on=["asin"],
+            how="left",
+        )["img_path"]
+        df_train["pos_img_path"] = pos_img_path
+        pos_img_path = pd.merge(
+            df_test[["asin", "pos_asin"]],
+            pd.concat((df_train[["asin", "img_path"]], df_test[["asin", "img_path"]])),
+            left_on=["pos_asin"],
+            right_on=["asin"],
+            how="left",
+        )["img_path"]
+        df_test["pos_img_path"] = pos_img_path
 
-    # Define positive weight: Since positives are much less than negatives, increase their weights
-    train_labels = np.array(df_train.label_vec.to_list())
-    pos_weight = len(train_labels) / train_labels.sum(axis=0)
-
-    # Construct dataset
+    # Hide labels
     df_train["is_labeled"] = torch.rand(len(df_train)) > 1.0 - labeled_ratio
     df_test["is_labeled"] = True
+
+    # Define positive weight: Since positives are much less than negatives, increase their weights
+    train_labels = np.array(
+        df_train[df_train["is_labeled"] == True].label_vec.to_list()
+    )
+    pos_weight = len(train_labels) / (train_labels.sum(axis=0) + 1e-6)
+
+    # Construct dataset
     train_dataset = DfDatasetWithCF(df_train, transform=train_transform)
     test_dataset = DfDatasetWithCF(df_test, transform=test_transform)
 

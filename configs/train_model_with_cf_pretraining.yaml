@@ -44,9 +44,9 @@ gpu: 0
 
 hydra:
   run:
-    dir: ../outputs/train_model_with_cf_pretraining_${category}_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/${category}/train_model_with_cf_pretraining_${now:%Y%m%d_%H%M%S}
   sweep:
-    dir: ../outputs/train_model_with_cf_pretraining_multirun_${category}_${now:%Y%m%d_%H%M%S}
-    subdir: train_model_with_cf_pretraining_${category}_${now:%Y%m%d_%H%M%S}_${hydra.job.num}
+    dir: ../outputs/${category}/train_model_with_cf_pretraining_multirun_${now:%Y%m%d_%H%M%S}
+    subdir: ${hydra.job.num}_cf_weight=${cf_weight}_labeled_ratio=${labeled_ratio}
 
 # python train_model_with_cf_pretraining.py 

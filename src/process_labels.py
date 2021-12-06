@@ -155,10 +155,14 @@ def process_labels(cfg: DictConfig):
     # Keep only items with images
     df = keep_only_exists_images(meta_df)[["asin", "img_path", "categories"]]
 
+    # Find top level label name by most ferquent
+    toplevel_all_labels = [sublist[0][0] for sublist in df["categories"].tolist()]
+    toplevel_label = max(set(toplevel_all_labels), key = toplevel_all_labels.count)
+
     # Merge label hierarchy:
     # For example: [Clothing, Shoes & Jewelry + Girls + Clothing + Swim] -> [Clothing, Shoes & Jewelry + Girls + Clothing]
     df["merged_labels"] = df["categories"].apply(
-        lambda x: merge_label_hierarchy(x, category=cfg.toplevel_label)
+        lambda x: merge_label_hierarchy(x, category=toplevel_label)
     )
 
     # Count number of samples for each category: remove downlevel category if there are not enough samples
@@ -166,7 +170,7 @@ def process_labels(cfg: DictConfig):
 
     # Remove the top category, it is 1 for all.
     df["merged_labels"] = df["merged_labels"].apply(
-        lambda labels: [label for label in labels if label != cfg.toplevel_label]
+        lambda labels: [label for label in labels if label != toplevel_label]
     )
 
     # Encode to Multilabel vector
@@ -192,13 +196,21 @@ def process_labels(cfg: DictConfig):
         df, cfg.train_set_ratio, cfg.min_label_count
     )
 
+    # Save train
     out_path = osp.join(out_dir, "df_train.pkl")
     df_train = df_train.reset_index()
     df_train.to_pickle(out_path)
     logger.info(f"Save to {out_path}")
+    out_path = osp.join(out_dir,'..', "df_train.pkl")
+    df_train.to_pickle(out_path)
+    logger.info(f"Save to {out_path}") 
 
+    # Save test
     out_path = osp.join(out_dir, "df_test.pkl")
     df_test = df_test.reset_index()
+    df_test.to_pickle(out_path)
+    logger.info(f"Save to {out_path}")
+    out_path = osp.join(out_dir,'..', "df_test.pkl")
     df_test.to_pickle(out_path)
     logger.info(f"Save to {out_path}")
 

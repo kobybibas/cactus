@@ -1,6 +1,6 @@
 # Data params
 data_dir: /data/amazon_dataset
-category: Clothing_Shoes_and_Jewelry
+category: Toys_and_Games # Clothing_Shoes_and_Jewelry
 emb_size: [64]
 bottleneck_size: 32
 test_size: 0.1
@@ -14,9 +14,9 @@ beta: 1.0
 
 # Flow params
 seed: 1234
-top_k_list: [10, 20, 50]
+top_k_list: [5,10, 50]
 gpu: 0
 
 hydra:
   run:
-    dir: ../outputs/train_recommender_${category}_${now:%Y%m%d_%H%M%S}
+    dir: ../outputs/${category}/train_recommender_${now:%Y%m%d_%H%M%S}

@@ -8,9 +8,8 @@ import hydra
 import pandas as pd
 import torch
 from cornac.eval_methods import RatioSplit
-from cornac.metrics import AUC
+from cornac.metrics import AUC, Recall, MAP
 from omegaconf import DictConfig
-
 from recommender_utils import AmazonClothing, HitRate
 from vae_utils import VAECFWithBias
 
@@ -39,6 +38,7 @@ def train_recommender(cfg: DictConfig):
     )
 
     # Initalize model
+    most_pop = cornac.models.MostPop()
     vaecf = VAECFWithBias(
         k=cfg.bottleneck_size,
         autoencoder_structure=list(cfg.emb_size),
@@ -55,9 +55,13 @@ def train_recommender(cfg: DictConfig):
 
     # Run training
     t0 = time.time()
-    metrics = [AUC()] + [HitRate(k=top_k) for top_k in cfg.top_k_list]
+    metrics = (
+        [AUC(), MAP()]
+        + [HitRate(k=top_k) for top_k in cfg.top_k_list]
+        + [Recall(k=top_k) for top_k in cfg.top_k_list]
+    )
     cornac.Experiment(
-        eval_method=rs, models=[vaecf], metrics=metrics, user_based=False
+        eval_method=rs, models=[most_pop,vaecf], metrics=metrics, user_based=False
     ).run()
 
     logger.info(f"Finish training in {time.time() -t0:.2f} sec")
@@ -67,10 +71,17 @@ def train_recommender(cfg: DictConfig):
     out_path = osp.join(out_dir, "vae.pt")
     torch.save(vaecf.vae.state_dict(), out_path)
 
-    # Save cf df
+    # Create CF data frame
     embs = vaecf.vae.decoder.fc1.weight.detach().cpu()
     df = pd.DataFrame({"asin": list(rs.train_set.item_ids), "embs": embs.tolist()})
+
+    # Save to: out path
     out_path = osp.join(out_dir, "cf_df.pkl")
+    logger.info(out_path)
+    df.to_pickle(out_path)
+
+    # Save to: dataset output top dir
+    out_path = osp.join(out_dir, "..", "cf_df.pkl")
     logger.info(out_path)
     df.to_pickle(out_path)
 
