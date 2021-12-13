@@ -1,5 +1,5 @@
 # Data params
-category: Toys_and_Games # Clothing_Shoes_and_Jewelry
+category: Beauty # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games
 cf_vector_df_path: ../outputs/${category}/cf_df.pkl
 train_df_path: ../outputs/${category}/df_train.pkl
 test_df_path: ../outputs/${category}/df_test.pkl
@@ -9,6 +9,9 @@ seed: 1234
 num_workers: 4
 labeled_ratio: 1.0 # The ratio fo the traninig set to contain label
 recall_at_k: [3, 5]
+is_use_bias: true
+is_use_num_intercations: false
+
 # Optimization params
 is_pretrained: true # Use imagenet pre trained model
 cf_loss_type: exp # triplet/exp

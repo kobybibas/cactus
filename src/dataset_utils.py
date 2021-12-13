@@ -12,12 +12,21 @@ logger = logging.getLogger(__name__)
 
 
 class DfDatasetWithCF(Dataset):
-    def __init__(self, df: pd.DataFrame, transform=None, target_transform=None) -> None:
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        transform=None,
+        target_transform=None,
+        is_use_bias: bool = False,
+        is_skip_img: bool = False,
+    ) -> None:
         super().__init__()
         self.df = df
         self.loader = default_loader
         self.transform = transform
         self.target_transform = target_transform
+        self.is_use_bias = is_use_bias
+        self.is_skip_img = is_skip_img
 
     def __len__(self):
         return len(self.df)
@@ -26,12 +35,17 @@ class DfDatasetWithCF(Dataset):
         row = self.df.iloc[index]
         img_path = row["img_path"]
         pos_img_path = row["pos_img_path"] if "pos_img_path" in row else row["img_path"]
-        cf_vector = row["embs"]
-        target = row["label_vec"]
+        cf_vector = torch.tensor(row["embs"])
+        target = torch.tensor(row["label_vec"])
         is_labeled = row["is_labeled"]
+        cf_bias = torch.tensor(row["bias"])
+        num_intercations = torch.tensor(row["num_intercations"])
 
-        cf_vector = torch.tensor(cf_vector)
-        target = torch.tensor(target)
+        if self.is_use_bias is True:
+            cf_vector = torch.hstack((cf_vector, cf_bias)).float()
+
+        if self.is_skip_img is True:
+            return cf_vector, target
 
         # Load image
         image = self.loader(img_path)
@@ -44,7 +58,7 @@ class DfDatasetWithCF(Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return image, image_pos, cf_vector, target, is_labeled
+        return image, image_pos, cf_vector, target, is_labeled, num_intercations
 
 
 # Transformation as ImageNet training
@@ -74,6 +88,8 @@ def get_datasets(
     df_test_path: str,
     cf_vector_df_path: str,
     labeled_ratio: float = 1.0,
+    is_use_bias: bool = False,
+    is_skip_img: bool = False,
 ):
 
     t0 = time.time()
@@ -122,12 +138,24 @@ def get_datasets(
     pos_weight = len(train_labels) / (train_labels.sum(axis=0) + 1e-6)
 
     # Construct dataset
-    train_dataset = DfDatasetWithCF(df_train, transform=train_transform)
-    test_dataset = DfDatasetWithCF(df_test, transform=test_transform)
+    train_dataset = DfDatasetWithCF(
+        df_train,
+        transform=train_transform,
+        is_use_bias=is_use_bias,
+        is_skip_img=is_skip_img,
+    )
+    test_dataset = DfDatasetWithCF(
+        df_test,
+        transform=test_transform,
+        is_use_bias=is_use_bias,
+        is_skip_img=is_skip_img,
+    )
 
     # Get metadata
     num_classes = len(df_train["label_vec"].iloc[0])
     cf_vector_dim = len(df_train["embs"].iloc[0])
+    if is_use_bias is True:
+        cf_vector_dim += 1
 
     dataset_meta = {
         "train_set_size": len(df_train),

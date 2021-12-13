@@ -43,15 +43,21 @@ class LitModel(pl.LightningModule):
         # Define the cf vector predictor
         self.cf_layers = nn.Sequential(
             nn.BatchNorm1d(num_filters),
+            nn.Dropout(0.1),
             nn.Linear(num_filters, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(128, cf_vector_dim),
         )
         logger.info(self)
 
     def criterion_cf(
-        self, pred: torch.Tensor, target: torch.Tensor, cf_topk_loss_ratio: float
+        self,
+        pred: torch.Tensor,
+        target: torch.Tensor,
+        cf_topk_loss_ratio: float,
+        num_intercations: torch.tensor,
     ):
         # Dim is as the len of the batch. the mean is for the cf vector dimentsion (64).
         loss_reduction_none = nn.functional.mse_loss(
@@ -61,15 +67,25 @@ class LitModel(pl.LightningModule):
         )
         loss_reduction_none = torch.exp(loss_reduction_none) - 1.0
 
+        if self.cfg.is_use_num_intercations is True:
+            # Weight based on the item's number of intercations
+            itercation_weight = (
+                torch.sqrt(num_intercations) / torch.sqrt(num_intercations).sum()
+            )
+            loss_reduction_none = itercation_weight * loss_reduction_none
+        else:
+            # Uniform weight
+            loss_reduction_none = loss_reduction_none / len(loss_reduction_none)
+
         # Take item_num with lowest loss
         if cf_topk_loss_ratio < 1.0:
             num_cf_items = int(cf_topk_loss_ratio * len(loss_reduction_none))
             loss = torch.topk(
                 loss_reduction_none, k=num_cf_items, largest=False, sorted=False
-            )[0].mean()
+            )[0].sum()
         else:
             num_cf_items = len(loss_reduction_none)
-            loss = loss_reduction_none.mean()
+            loss = loss_reduction_none.sum()
         return loss, num_cf_items
 
     def criterion_cf_triplet(self, cf_hat: torch.Tensor, cf_hat_pos: torch.Tensor):
@@ -89,13 +105,7 @@ class LitModel(pl.LightningModule):
     def _loss_helper(self, batch, phase: str):
         assert phase in ["train", "val"]
 
-        (
-            imgs,
-            imgs_pos,
-            cf_vectors,
-            labels,
-            is_labeled,
-        ) = batch
+        (imgs, imgs_pos, cf_vectors, labels, is_labeled, num_intercations) = batch
         y_hat, cf_hat = self(imgs)
 
         # Compute calssification loss
@@ -106,7 +116,10 @@ class LitModel(pl.LightningModule):
         cf_topk_loss_ratio = self.cfg["cf_topk_loss_ratio"] if phase == "train" else 1.0
         if self.cfg.cf_loss_type != "triplet":
             loss_cf, num_cf_items = self.criterion_cf(
-                cf_hat.squeeze(), cf_vectors.squeeze(), cf_topk_loss_ratio
+                cf_hat.squeeze(),
+                cf_vectors.squeeze(),
+                cf_topk_loss_ratio,
+                num_intercations,
             )
         else:
             _, cf_hat_pos = self(imgs_pos)
@@ -224,10 +237,76 @@ class LitModel(pl.LightningModule):
 
             # Recal per item
             recall_i = sum(el in pred_idx for el in label_idx) / len(label_idx)
-            
+
             recall_sum += recall_i
             item_num += 1
 
         # Average recall
         recall_rate = recall_sum / item_num
         return recall_rate
+
+
+class LitModelCFBased(LitModel):
+    def __init__(
+        self,
+        num_target_classes: int,
+        cf_vector_dim: int,
+        cfg,
+        pos_weight=None,
+    ):
+        # pl.LightningModule().__init__()
+        cfg["is_pretrained"] = False
+        super().__init__(num_target_classes, cf_vector_dim, cfg, pos_weight)
+
+        # self.cfg = cfg
+        # self.num_target_classes = num_target_classes
+        # self.save_hyperparameters()
+
+        # pos_weight = torch.tensor(pos_weight) if pos_weight is not None else None
+        # self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
+
+        # Define the backbone
+        layer_dims = torch.linspace(cf_vector_dim, num_target_classes, 3).int()
+        self.model = nn.Sequential(
+            nn.BatchNorm1d(layer_dims[0]),
+            nn.Linear(layer_dims[0], layer_dims[1]),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(layer_dims[1], layer_dims[2]),
+        )
+        logger.info(self)
+
+    def forward(self, x):
+        return self.model(x)
+
+    def _loss_helper(self, batch, phase: str):
+        assert phase in ["train", "val"]
+
+        cf_vectors, labels = batch
+        y_hat = self(cf_vectors)
+
+        # Compute calssification loss
+        loss = self.criterion(y_hat.squeeze(), labels.float().squeeze()).mean()
+
+        res_dict = {
+            f"loss/{phase}": loss.detach(),
+        }
+        self.log_dict(
+            res_dict,
+            prog_bar=True,
+            logger=True,
+            on_step=False,
+            on_epoch=True,
+        )
+
+        preds = torch.sigmoid(y_hat)
+        res_dict["labels"] = labels.cpu().detach().numpy()
+        res_dict["preds"] = preds.cpu().detach().numpy()
+        res_dict["loss"] = loss
+
+        # Most pop prediction as baseline
+        if False:
+            popolarity = np.array(self.train_dataloader.dataloader.dataset.df.label_vec.tolist()).sum(axis=0)
+            most_pop = popolarity/popolarity.sum()
+            res_dict["preds"] = most_pop[np.newaxis,:].repeat( res_dict["preds"].shape[0],0)
+        return res_dict

@@ -12,16 +12,16 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from torch.utils.data.dataloader import DataLoader
 from hydra.core.hydra_config import HydraConfig
 from dataset_utils import get_datasets
-from lit_utils import LitModel
+from lit_utils import LitModelCFBased
 
 logger = logging.getLogger(__name__)
 
 
 @hydra.main(
     config_path="../configs",
-    config_name="train_model",
+    config_name="train_model_cf_based",
 )
-def train_model(cfg: DictConfig):
+def train_model_cf_based(cfg: DictConfig):
     t_start = time.time()
     logger.info(cfg)
     out_dir = os.getcwd()
@@ -50,7 +50,9 @@ def train_model(cfg: DictConfig):
         cfg.cf_vector_df_path,
         cfg.labeled_ratio,
         cfg.is_use_bias,
+        is_skip_img=True,
     )
+
     logger.info(f"Loadded data in {time.time() -t0 :.2f} sec")
     logger.info(
         "Sizes [trainset testset num_classes]=[{} {} {}]".format(
@@ -75,7 +77,7 @@ def train_model(cfg: DictConfig):
     )
 
     # Load model
-    lit_h = LitModel(
+    lit_h = LitModelCFBased(
         dataset_meta["num_classes"], dataset_meta["cf_vector_dim"], cfg, pos_weight
     )
     trainer = pl.Trainer(
@@ -97,4 +99,4 @@ def train_model(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    train_model()
+    train_model_cf_based()

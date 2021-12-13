@@ -1,6 +1,6 @@
 # Data params
 data_dir: /data/amazon_dataset
-category: Toys_and_Games # Clothing_Shoes_and_Jewelry
+category: Toys_and_Games # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Beauty
 train_set_ratio: 0.7
 min_label_count: 3 # Minimum number of items for each label in training set and test set
 

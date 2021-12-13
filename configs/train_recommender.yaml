@@ -1,6 +1,6 @@
 # Data params
 data_dir: /data/amazon_dataset
-category: Toys_and_Games # Clothing_Shoes_and_Jewelry
+category: Beauty # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games
 emb_size: [64]
 bottleneck_size: 32
 test_size: 0.1

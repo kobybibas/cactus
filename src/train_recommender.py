@@ -61,7 +61,7 @@ def train_recommender(cfg: DictConfig):
         + [Recall(k=top_k) for top_k in cfg.top_k_list]
     )
     cornac.Experiment(
-        eval_method=rs, models=[most_pop,vaecf], metrics=metrics, user_based=False
+        eval_method=rs, models=[most_pop, vaecf], metrics=metrics, user_based=False
     ).run()
 
     logger.info(f"Finish training in {time.time() -t0:.2f} sec")
@@ -72,8 +72,17 @@ def train_recommender(cfg: DictConfig):
     torch.save(vaecf.vae.state_dict(), out_path)
 
     # Create CF data frame
+    num_intercations = rs.train_set.csc_matrix.sum(axis=0).tolist()[0]
     embs = vaecf.vae.decoder.fc1.weight.detach().cpu()
-    df = pd.DataFrame({"asin": list(rs.train_set.item_ids), "embs": embs.tolist()})
+    bias = vaecf.vae.item_bias.weight.detach().cpu().squeeze()
+    df = pd.DataFrame(
+        {
+            "asin": list(rs.train_set.item_ids),
+            "embs": embs.tolist(),
+            "bias": bias.tolist(),
+            "num_intercations": num_intercations,
+        }
+    )
 
     # Save to: out path
     out_path = osp.join(out_dir, "cf_df.pkl")
