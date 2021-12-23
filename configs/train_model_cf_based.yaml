@@ -8,21 +8,22 @@ test_df_path: ../outputs/${category}/df_test.pkl
 seed: 1234
 num_workers: 4
 labeled_ratio: 1.0 # The ratio fo the traninig set to contain label
-recall_at_k: [3, 5]
+recall_at_k: []
 is_use_bias: true
-is_use_num_intercations: false
+
+confidence_type: uniform
 
 # Optimization params
 batch_size: 512
 weight_decay: 1e-5
-lr: 1e-1
-milestones: [80,95]
-epochs: 100
+lr: 1 # 1e-1
+milestones: [25, 55]
+epochs: 60
+use_grad_cosine: true
 
 # Flow params
 is_debug: false
 gpu: 0
-
 
 is_pretrained: false
 
@@ -32,5 +33,4 @@ hydra:
   sweep:
     dir: ../outputs/${category}/train_model_cf_based_multirun_${now:%Y%m%d_%H%M%S}
     subdir: ${hydra.job.num}
-
 # python train_model_cf_based.py category=Beauty

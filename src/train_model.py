@@ -10,7 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from torch.utils.data.dataloader import DataLoader
-from hydra.core.hydra_config import HydraConfig
+
 from dataset_utils import get_datasets
 from lit_utils import LitModel
 
@@ -48,8 +48,12 @@ def train_model(cfg: DictConfig):
         cfg.train_df_path,
         cfg.test_df_path,
         cfg.cf_vector_df_path,
+        out_dir,
         cfg.labeled_ratio,
         cfg.is_use_bias,
+        cf_based_train_loss_path=cfg.cf_based_train_loss_path,
+        cf_based_test_loss_path=cfg.cf_based_test_loss_path,
+        confidence_type=cfg.confidence_type,
     )
     logger.info(f"Loadded data in {time.time() -t0 :.2f} sec")
     logger.info(
@@ -89,10 +93,13 @@ def train_model(cfg: DictConfig):
         ],
         fast_dev_run=cfg.is_debug,
         num_sanity_val_steps=0,
+        gradient_clip_val=cfg.gradient_clip_val if cfg.use_grad_cosine is False else 0.0,
         gpus=[cfg.gpu] if torch.cuda.is_available() else None,
     )
     trainer.fit(lit_h, trainloader, testloader)
-    logger.info(f"Finish training in {time.time() -t_start :.2f} sec")
+    logger.info(
+        f"Finish training in {time.time() -t_start :.2f} sec. {lit_h.map_best=:.3f}"
+    )
     logger.info(f"{os.getcwd()=}")
 
 

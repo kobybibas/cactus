@@ -1,8 +1,10 @@
 import logging
 import os
+import os.path as osp
 import time
 
 import hydra
+import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
 from hydra.utils import get_original_cwd
@@ -10,11 +12,23 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from torch.utils.data.dataloader import DataLoader
-from hydra.core.hydra_config import HydraConfig
+
 from dataset_utils import get_datasets
 from lit_utils import LitModelCFBased
 
 logger = logging.getLogger(__name__)
+
+
+def get_loader_loss(model_h, dataloader) -> torch.Tensor:
+    criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
+    loss_list = []
+    with torch.no_grad():
+        for cf_vectors, y in dataloader:
+            logits = model_h(cf_vectors)
+            loss = criterion(logits, y.float())
+            loss_list.append(loss.detach().cpu())
+    loss_vec = torch.vstack(loss_list)
+    return loss_vec
 
 
 @hydra.main(
@@ -48,6 +62,7 @@ def train_model_cf_based(cfg: DictConfig):
         cfg.train_df_path,
         cfg.test_df_path,
         cfg.cf_vector_df_path,
+        out_dir,
         cfg.labeled_ratio,
         cfg.is_use_bias,
         is_skip_img=True,
@@ -96,6 +111,34 @@ def train_model_cf_based(cfg: DictConfig):
     trainer.fit(lit_h, trainloader, testloader)
     logger.info(f"Finish training in {time.time() -t_start :.2f} sec")
     logger.info(f"{os.getcwd()=}")
+
+    # Save confidence
+    t0 = time.time()
+    trainloader = DataLoader(
+        train_dataset,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        shuffle=False,
+    )
+    train_loss_vec = get_loader_loss(lit_h, trainloader)
+    out_path = osp.join(out_dir, "cf_based_train_loss.pt")
+    torch.save(train_loss_vec, out_path)
+    out_path = osp.join(out_dir, "..", "cf_based_train_loss.pt")
+    torch.save(train_loss_vec, out_path)
+    logger.info(f"Finish get_loader_loss in {time.time() -t0 :.2f} sec. {out_path=}")
+
+    plt.hist(train_loss_vec.mean(axis=1).numpy(), bins=1000)
+    plt.xlabel("Loss")
+    plt.ylabel("Count")
+    plt.savefig(osp.join(out_dir, "train_loss_vec_hist.jpg"))
+    plt.close()
+
+    test_loss_vec = get_loader_loss(lit_h, testloader)
+    out_path = osp.join(out_dir, "cf_based_test_loss.pt")
+    torch.save(test_loss_vec, out_path)
+    out_path = osp.join(out_dir, "..", "cf_based_test_loss.pt")
+    torch.save(test_loss_vec, out_path)
+    logger.info(f"Finish get_loader_loss in {time.time() -t0 :.2f} sec. {out_path=}")
 
 
 if __name__ == "__main__":

@@ -5,12 +5,13 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from multitask_utils import GradCosine
 from sklearn.metrics import (
-    accuracy_score,
     average_precision_score,
     f1_score,
     roc_auc_score,
 )
+from architecture_utils import get_backbone, get_cf_predictor, get_classifier
 
 logger = logging.getLogger(__name__)
 
@@ -27,37 +28,27 @@ class LitModel(pl.LightningModule):
         self.cfg = cfg
         self.num_target_classes = num_target_classes
         self.save_hyperparameters()
+        self.map_best = 0
 
         pos_weight = torch.tensor(pos_weight) if pos_weight is not None else None
         self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
-        # Define the backbone
-        backbone = models.resnet18(pretrained=cfg["is_pretrained"])
-        layers = list(backbone.children())[:-1]
-        self.backbone = nn.Sequential(*layers)
+        # Define the archotecture
+        self.backbone, out_feature_num = get_backbone(cfg["is_pretrained"])
+        self.classifier = get_classifier(out_feature_num, num_target_classes)
+        self.cf_layers = get_cf_predictor(out_feature_num, cf_vector_dim)
 
-        # Define the classification layer
-        num_filters = backbone.fc.in_features
-        self.classifier = nn.Linear(num_filters, num_target_classes)
-
-        # Define the cf vector predictor
-        self.cf_layers = nn.Sequential(
-            nn.BatchNorm1d(num_filters),
-            nn.Dropout(0.1),
-            nn.Linear(num_filters, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(128, cf_vector_dim),
-        )
-        logger.info(self)
+        # For MTL
+        self.weighting_method = GradCosine(main_task=0.0)
+        if hasattr(self.cfg, "use_grad_cosine") and self.cfg.use_grad_cosine is True:
+            self.automatic_optimization = False
 
     def criterion_cf(
         self,
         pred: torch.Tensor,
         target: torch.Tensor,
         cf_topk_loss_ratio: float,
-        num_intercations: torch.tensor,
+        cf_confidence: torch.tensor,
     ):
         # Dim is as the len of the batch. the mean is for the cf vector dimentsion (64).
         loss_reduction_none = nn.functional.mse_loss(
@@ -66,16 +57,9 @@ class LitModel(pl.LightningModule):
             dim=-1
         )
         loss_reduction_none = torch.exp(loss_reduction_none) - 1.0
-
-        if self.cfg.is_use_num_intercations is True:
-            # Weight based on the item's number of intercations
-            itercation_weight = (
-                torch.sqrt(num_intercations) / torch.sqrt(num_intercations).sum()
-            )
-            loss_reduction_none = itercation_weight * loss_reduction_none
-        else:
-            # Uniform weight
-            loss_reduction_none = loss_reduction_none / len(loss_reduction_none)
+        loss_reduction_none = (
+            cf_confidence * loss_reduction_none / (cf_confidence.sum())
+        )
 
         # Take item_num with lowest loss
         if cf_topk_loss_ratio < 1.0:
@@ -84,17 +68,16 @@ class LitModel(pl.LightningModule):
                 loss_reduction_none, k=num_cf_items, largest=False, sorted=False
             )[0].sum()
         else:
-            num_cf_items = len(loss_reduction_none)
             loss = loss_reduction_none.sum()
-        return loss, num_cf_items
+
+        return loss
 
     def criterion_cf_triplet(self, cf_hat: torch.Tensor, cf_hat_pos: torch.Tensor):
-        num_cf_items = len(cf_hat)
         cf_hat_neg = torch.roll(cf_hat_pos, shifts=1, dims=0)
         loss = nn.functional.triplet_margin_loss(
             cf_hat, cf_hat_pos, cf_hat_neg, margin=0.2, p=2
         )
-        return loss, num_cf_items
+        return loss
 
     def forward(self, x):
         representations = self.backbone(x).flatten(1)
@@ -105,7 +88,14 @@ class LitModel(pl.LightningModule):
     def _loss_helper(self, batch, phase: str):
         assert phase in ["train", "val"]
 
-        (imgs, imgs_pos, cf_vectors, labels, is_labeled, num_intercations) = batch
+        (
+            imgs,
+            imgs_pos,
+            cf_vectors,
+            labels,
+            is_labeled,
+            cf_confidence,
+        ) = batch
         y_hat, cf_hat = self(imgs)
 
         # Compute calssification loss
@@ -114,32 +104,31 @@ class LitModel(pl.LightningModule):
 
         # Compute CF loss
         cf_topk_loss_ratio = self.cfg["cf_topk_loss_ratio"] if phase == "train" else 1.0
-        if self.cfg.cf_loss_type != "triplet":
-            loss_cf, num_cf_items = self.criterion_cf(
-                cf_hat.squeeze(),
-                cf_vectors.squeeze(),
+        if self.cfg.cf_loss_type == "exp":
+            loss_cf = self.criterion_cf(
+                cf_hat,
+                cf_vectors,
                 cf_topk_loss_ratio,
-                num_intercations,
+                cf_confidence,
             )
-        else:
+        elif self.cfg.cf_loss_type == "triplet":
             _, cf_hat_pos = self(imgs_pos)
-            loss_cf, num_cf_items = self.criterion_cf_triplet(
-                cf_hat.squeeze(), cf_hat_pos.squeeze()
-            )
+            loss_cf = self.criterion_cf_triplet(cf_hat.squeeze(), cf_hat_pos.squeeze())
+        else:
+            raise ValueError(f"{self.cfg.cf_loss_type=}")
 
         # Combine loss
         loss = (
             self.cfg["label_weight"] * loss_calssification
             + self.cfg["cf_weight"] * loss_cf
         )
+        if phase == "train":
+            self.manual_backward(loss_calssification, loss_cf)
 
-        cf_weight = self.cfg["cf_weight"]
         res_dict = {
-            f"loss_{cf_weight=}/{phase}": loss.detach(),
-            f"loss_classification_{cf_weight=}/{phase}": loss_calssification.detach(),
-            f"loss_cf_{cf_weight=}/{phase}": loss_cf.detach(),
-            f"num_cf_items_{cf_weight=}/{phase}": num_cf_items,
-            f"is_labeled_num_{cf_weight=}/{phase}": is_labeled.sum(),
+            f"loss/{phase}": loss.detach(),
+            f"loss_classification/{phase}": loss_calssification.detach(),
+            f"loss_cf/{phase}": loss_cf.detach(),
         }
         self.log_dict(
             res_dict,
@@ -165,7 +154,6 @@ class LitModel(pl.LightningModule):
         # Metrics
         auroc = roc_auc_score(labels, preds)
         ap = average_precision_score(labels, preds)
-        acc = accuracy_score(labels, preds > 0.5)
         f1 = f1_score(labels, preds > 0.5, average="macro")
 
         # recall@k
@@ -178,7 +166,6 @@ class LitModel(pl.LightningModule):
             {
                 f"auroc/{phase}": auroc,
                 f"ap/{phase}": ap,
-                f"acc/{phase}": acc,
                 f"f1/{phase}": f1,
             },
             logger=True,
@@ -194,13 +181,13 @@ class LitModel(pl.LightningModule):
             prog_bar=False,
         )
 
-        loss, acc, auroc, ap, f1 = np.round([loss, acc, auroc, ap, f1], 3)
+        loss, auroc, ap, f1 = np.round([loss, auroc, ap, f1], 3)
         logger.info(
-            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, acc, auroc, ap, f1]=}"
+            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, auroc, ap, f1]=}"
         )
-        logger.info(
-            [f"{key}={np.round(value, 3)}" for key, value in recall_dict.items()]
-        )
+
+        if phase == "val" and ap > self.map_best:
+            self.map_best = ap
 
     def training_step(self, batch, batch_idx):
         return self._loss_helper(batch, phase="train")
@@ -245,6 +232,28 @@ class LitModel(pl.LightningModule):
         recall_rate = recall_sum / item_num
         return recall_rate
 
+    def manual_backward(self, loss_classification, loss_cf):
+        self._verify_is_manual_optimization("manual_backward")
+        # self.trainer.accelerator.backward(loss, None, None, *args, **kwargs)
+
+        opt = self.optimizers()
+        opt.zero_grad()
+
+        # Weight losses and backward
+        shared_parameters = [p for _, p in self.backbone.named_parameters()]
+        self.weighting_method.backward(
+            [loss_classification, loss_cf],
+            shared_parameters=shared_parameters,
+            retain_graph=False,
+        )
+
+        # Update parameters
+        opt.step()
+        # opt.zero_grad()
+
+    # def backward(self, loss, optimizer, optimizer_idx, *args, **kwargs) -> None:
+    #     pass
+
 
 class LitModelCFBased(LitModel):
     def __init__(
@@ -257,13 +266,6 @@ class LitModelCFBased(LitModel):
         # pl.LightningModule().__init__()
         cfg["is_pretrained"] = False
         super().__init__(num_target_classes, cf_vector_dim, cfg, pos_weight)
-
-        # self.cfg = cfg
-        # self.num_target_classes = num_target_classes
-        # self.save_hyperparameters()
-
-        # pos_weight = torch.tensor(pos_weight) if pos_weight is not None else None
-        # self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
         # Define the backbone
         layer_dims = torch.linspace(cf_vector_dim, num_target_classes, 3).int()
@@ -306,7 +308,11 @@ class LitModelCFBased(LitModel):
 
         # Most pop prediction as baseline
         if False:
-            popolarity = np.array(self.train_dataloader.dataloader.dataset.df.label_vec.tolist()).sum(axis=0)
-            most_pop = popolarity/popolarity.sum()
-            res_dict["preds"] = most_pop[np.newaxis,:].repeat( res_dict["preds"].shape[0],0)
+            popolarity = np.array(
+                self.train_dataloader.dataloader.dataset.df.label_vec.tolist()
+            ).sum(axis=0)
+            freq = popolarity / len(self.train_dataloader.dataloader.dataset.df)
+            res_dict["preds"] = freq[np.newaxis, :].repeat(
+                res_dict["preds"].shape[0], 0
+            )
         return res_dict
