@@ -53,14 +53,18 @@ def train_model(cfg: DictConfig):
         cfg.is_use_bias,
         cf_based_train_loss_path=cfg.cf_based_train_loss_path,
         cf_based_test_loss_path=cfg.cf_based_test_loss_path,
+        is_use_cf_embeddings= cfg.is_use_cf_embeddings,
+        cf_embeddings_train_path = cfg.cf_embeddings_train_path,
+        cf_embeddings_test_path = cfg.cf_embeddings_test_path,
         confidence_type=cfg.confidence_type,
     )
     logger.info(f"Loadded data in {time.time() -t0 :.2f} sec")
     logger.info(
-        "Sizes [trainset testset num_classes]=[{} {} {}]".format(
+        "Sizes [trainset testset num_classes cf_vector_dim]=[{} {} {} {}]".format(
             dataset_meta["train_set_size"],
             dataset_meta["test_set_size"],
             dataset_meta["num_classes"],
+            dataset_meta["cf_vector_dim"]
         )
     )
 

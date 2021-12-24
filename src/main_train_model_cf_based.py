@@ -22,13 +22,18 @@ logger = logging.getLogger(__name__)
 def get_loader_loss(model_h, dataloader) -> torch.Tensor:
     criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
     loss_list = []
+    cf_embeddings_list = []
     with torch.no_grad():
         for cf_vectors, y in dataloader:
             logits = model_h(cf_vectors)
             loss = criterion(logits, y.float())
             loss_list.append(loss.detach().cpu())
+
+            cf_embeddings = model_h.get_embeddings(cf_vectors)
+            cf_embeddings_list.append(cf_embeddings.cpu())
     loss_vec = torch.vstack(loss_list)
-    return loss_vec
+    cf_embeddings_matrix = torch.vstack(cf_embeddings_list)
+    return loss_vec, cf_embeddings_matrix
 
 
 @hydra.main(
@@ -120,25 +125,29 @@ def train_model_cf_based(cfg: DictConfig):
         num_workers=cfg.num_workers,
         shuffle=False,
     )
-    train_loss_vec = get_loader_loss(lit_h, trainloader)
-    out_path = osp.join(out_dir, "cf_based_train_loss.pt")
-    torch.save(train_loss_vec, out_path)
-    out_path = osp.join(out_dir, "..", "cf_based_train_loss.pt")
-    torch.save(train_loss_vec, out_path)
-    logger.info(f"Finish get_loader_loss in {time.time() -t0 :.2f} sec. {out_path=}")
 
-    plt.hist(train_loss_vec.mean(axis=1).numpy(), bins=1000)
-    plt.xlabel("Loss")
-    plt.ylabel("Count")
-    plt.savefig(osp.join(out_dir, "train_loss_vec_hist.jpg"))
-    plt.close()
+    # Save products
+    for (loader, set_name) in [(trainloader, "train"), (testloader, "test")]:
+        loss_vec, cf_embeddings = get_loader_loss(lit_h, loader)
+        out_path = osp.join(out_dir, f"cf_based_{set_name}_loss.pt")
+        torch.save(loss_vec, out_path)
+        out_path = osp.join(out_dir, "..", f"cf_based_{set_name}_loss.pt")
+        torch.save(loss_vec, out_path)
 
-    test_loss_vec = get_loader_loss(lit_h, testloader)
-    out_path = osp.join(out_dir, "cf_based_test_loss.pt")
-    torch.save(test_loss_vec, out_path)
-    out_path = osp.join(out_dir, "..", "cf_based_test_loss.pt")
-    torch.save(test_loss_vec, out_path)
-    logger.info(f"Finish get_loader_loss in {time.time() -t0 :.2f} sec. {out_path=}")
+        out_path = osp.join(out_dir, f"cf_embeddings_{set_name}.pt")
+        torch.save(cf_embeddings, out_path)
+        out_path = osp.join(out_dir, "..", f"cf_embeddings_{set_name}.pt")
+        torch.save(cf_embeddings, out_path)
+
+        logger.info(
+            f"Finish get_loader_loss in {time.time() -t0 :.2f} sec. {cf_embeddings.shape} {out_path=}"
+        )
+
+        plt.hist(loss_vec.mean(axis=1).numpy(), bins=1000)
+        plt.xlabel("Loss")
+        plt.ylabel("Count")
+        plt.savefig(osp.join(out_dir, f"{set_name}_loss_vec_hist.jpg"))
+        plt.close()
 
 
 if __name__ == "__main__":

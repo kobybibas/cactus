@@ -5,6 +5,8 @@ train_df_path: ../outputs/${category}/df_train.pkl
 test_df_path: ../outputs/${category}/df_test.pkl
 cf_based_train_loss_path: ../outputs/${category}/cf_based_train_loss.pt
 cf_based_test_loss_path: ../outputs/${category}/cf_based_test_loss.pt
+cf_embeddings_train_path: ../outputs/${category}/cf_embeddings_train.pt
+cf_embeddings_test_path: ../outputs/${category}/cf_embeddings_test.pt
 
 # Dataset params
 seed: 1234
@@ -12,8 +14,8 @@ num_workers: 4
 labeled_ratio: 1.0 # The ratio fo the traninig set to contain label
 recall_at_k: []
 is_use_bias: true
-
-confidence_type: 'loss_based' # loss_based / uniform / 
+is_use_cf_embeddings: false
+confidence_type: 'uniform' # loss_based/uniform
 
 # Optimization params
 is_pretrained: true # Use imagenet pre trained model
@@ -24,7 +26,7 @@ lr: 1e-1
 milestones: [65,99]
 epochs: 100
 gradient_clip_val: 1.0
-use_grad_cosine: true
+use_grad_cosine: false
 
 
 

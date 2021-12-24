@@ -74,10 +74,12 @@ class DfDatasetWithCF(Dataset):
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 train_transform = transforms.Compose(
     [
-        transforms.RandomResizedCrop(224),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-        transforms.RandomGrayscale(),
+        # transforms.RandomResizedCrop(224),
+        # transforms.RandomHorizontalFlip(),
+        # transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+        # transforms.RandomGrayscale(),
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
         transforms.ToTensor(),
         normalize,
     ]
@@ -138,10 +140,10 @@ def assign_positive_cf(df_train, df_test):
 def plot_and_save_conf_histogram(
     out_dir: str,
     confidence_type: str,
-    cf_conf_train:np.ndarray,
-    cf_conf_train_clipped:np.ndarray,
-    cf_conf_test:np.ndarray,
-    cf_conf_test_clipped:np.ndarray,
+    cf_conf_train: np.ndarray,
+    cf_conf_train_clipped: np.ndarray,
+    cf_conf_test: np.ndarray,
+    cf_conf_test_clipped: np.ndarray,
 ):
     _, axs = plt.subplots(2, 1, sharex=True)
     ax = axs[0]
@@ -169,6 +171,9 @@ def get_datasets(
     is_skip_img: bool = False,
     cf_based_train_loss_path: str = None,
     cf_based_test_loss_path: str = None,
+    is_use_cf_embeddings: bool = False,
+    cf_embeddings_train_path: str = None,
+    cf_embeddings_test_path: str = None,
     confidence_type: str = "uniform",
 ):
 
@@ -187,6 +192,14 @@ def get_datasets(
     logger.info(
         f"merge df in {time.time() -t0 :.2f} sec. {len(df_train)=} {len(df_test)=} {len(cf_df)=}"
     )
+
+    if is_use_cf_embeddings is True:
+        t0 = time.time()
+        cf_embeddings_train = torch.load(cf_embeddings_train_path)
+        cf_embeddings_test = torch.load(cf_embeddings_test_path)
+        df_train["embs"] = cf_embeddings_train.tolist()
+        df_test["embs"] = cf_embeddings_test.tolist()
+        logger.info(f"Override cf vectors in {time.time() -t0 :.2f} sec.")
 
     # Add positive CF
     if "pos_asin" in df_train.columns:

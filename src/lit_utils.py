@@ -233,8 +233,9 @@ class LitModel(pl.LightningModule):
         return recall_rate
 
     def manual_backward(self, loss_classification, loss_cf):
+        if self.automatic_optimization is True:
+            return
         self._verify_is_manual_optimization("manual_backward")
-        # self.trainer.accelerator.backward(loss, None, None, *args, **kwargs)
 
         opt = self.optimizers()
         opt.zero_grad()
@@ -250,9 +251,6 @@ class LitModel(pl.LightningModule):
         # Update parameters
         opt.step()
         # opt.zero_grad()
-
-    # def backward(self, loss, optimizer, optimizer_idx, *args, **kwargs) -> None:
-    #     pass
 
 
 class LitModelCFBased(LitModel):
@@ -277,6 +275,11 @@ class LitModelCFBased(LitModel):
             nn.Linear(layer_dims[1], layer_dims[2]),
         )
         logger.info(self)
+
+    def get_embeddings(self, x):
+        z = self.model[0](x)
+        z = self.model[1](z)
+        return z
 
     def forward(self, x):
         return self.model(x)

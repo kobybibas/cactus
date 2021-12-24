@@ -16,7 +16,7 @@ confidence_type: uniform
 # Optimization params
 batch_size: 512
 weight_decay: 1e-5
-lr: 1 # 1e-1
+lr: 1
 milestones: [25, 55]
 epochs: 60
 use_grad_cosine: true

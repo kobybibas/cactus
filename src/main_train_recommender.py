@@ -8,9 +8,9 @@ import hydra
 import pandas as pd
 import torch
 from cornac.eval_methods import RatioSplit
-from cornac.metrics import AUC, Recall, MAP
+from cornac.metrics import AUC, MAP
 from omegaconf import DictConfig
-from recommender_utils import AmazonClothing, HitRate
+from recommender_utils import AmazonClothing
 from vae_utils import VAECFWithBias
 
 logger = logging.getLogger(__name__)
@@ -47,19 +47,17 @@ def train_recommender(cfg: DictConfig):
         n_epochs=cfg.n_epochs,
         batch_size=cfg.batch_size,
         learning_rate=cfg.lr,
+        lr_steps=cfg.lr_steps,
         beta=cfg.beta,
         seed=cfg.seed,
         use_gpu=True,
         verbose=True,
+        out_dir=out_dir
     )
 
     # Run training
     t0 = time.time()
-    metrics = (
-        [AUC(), MAP()]
-        + [HitRate(k=top_k) for top_k in cfg.top_k_list]
-        + [Recall(k=top_k) for top_k in cfg.top_k_list]
-    )
+    metrics = [AUC(), MAP()]
     cornac.Experiment(
         eval_method=rs, models=[most_pop, vaecf], metrics=metrics, user_based=False
     ).run()
