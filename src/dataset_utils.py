@@ -74,12 +74,10 @@ class DfDatasetWithCF(Dataset):
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 train_transform = transforms.Compose(
     [
-        # transforms.RandomResizedCrop(224),
-        # transforms.RandomHorizontalFlip(),
-        # transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-        # transforms.RandomGrayscale(),
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+        transforms.RandomGrayscale(),
         transforms.ToTensor(),
         normalize,
     ]
