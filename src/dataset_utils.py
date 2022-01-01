@@ -227,14 +227,6 @@ def get_datasets(
         cf_conf_train = np.sqrt(df_train["num_intercations"])
         cf_conf_test = np.sqrt(df_test["num_intercations"])
 
-    elif False and confidence_type == "sqrt_pop_over_pop_avg":
-        # TODO Make it work
-        # Weight based on the item's number of intercations
-        # self.df["pop_over_avg_pop"] = df.num_intercations / df.num_intercations.mean()
-        itercation_weight_a = torch.sqrt(pop_over_avg_pop)
-        itercation_weight_b = torch.minimum(itercation_weight_a, torch.tensor(2.0))
-        itercation_weight_b = torch.maximum(itercation_weight_b, torch.tensor(0.5))
-        itercation_weight = itercation_weight_b / itercation_weight_b.sum()
     else:
         raise ValueError(f"{confidence_type} is not supported")
     cf_conf_train_clipped, cf_conf_test_clipped = clip_confidence(

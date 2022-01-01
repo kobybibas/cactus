@@ -1,4 +1,3 @@
-import gzip
 import logging
 import os
 import os.path as osp
@@ -7,7 +6,6 @@ from typing import List
 import pandas as pd
 import requests
 from tqdm import tqdm
-
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +49,7 @@ class DataHelper:
         logger.info(f"ungzip_file: {path_src=} {path_dst=}")
         if self.is_exist(path_dst):
             return
-        os.system(f'gzip -dk {path_src}')
-
-        
+        os.system(f"gzip -dk {path_src}")
 
     def read_pickle(self, pkl_path: str) -> pd.DataFrame:
         logger.info(f"pd.read_pickle {pkl_path}")

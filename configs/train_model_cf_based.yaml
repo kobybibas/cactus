@@ -1,5 +1,5 @@
 # Data params
-category: Beauty # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games
+category: Toys_and_Games # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games
 cf_vector_df_path: ../outputs/${category}/cf_df.pkl
 train_df_path: ../outputs/${category}/df_train.pkl
 test_df_path: ../outputs/${category}/df_test.pkl
@@ -19,7 +19,7 @@ weight_decay: 1e-5
 lr: 1
 milestones: [25, 55]
 epochs: 60
-use_grad_cosine: true
+use_grad_cosine: false
 
 # Flow params
 is_debug: false
@@ -33,4 +33,3 @@ hydra:
   sweep:
     dir: ../outputs/${category}/train_model_cf_based_multirun_${now:%Y%m%d_%H%M%S}
     subdir: ${hydra.job.num}
-# python train_model_cf_based.py category=Beauty

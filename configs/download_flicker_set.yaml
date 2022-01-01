@@ -1,0 +1,11 @@
+data_dir: /data/flicker_dataset
+is_debug: false
+is_override: false
+base_url: "https://figshare.com/ndownloader/files/4864402"
+img_base_url: 'http://flickr.com/photo.gne?id='
+img_html_match: 'https://live.staticflickr.com.*?.jpg'
+
+
+hydra:
+  run:
+    dir: ../outputs/download_data_${now:%Y%m%d_%H%M%S}

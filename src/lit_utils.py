@@ -4,13 +4,8 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torchvision.models as models
-from multitask_utils import GradCosine
-from sklearn.metrics import (
-    average_precision_score,
-    f1_score,
-    roc_auc_score,
-)
+from sklearn.metrics import average_precision_score, f1_score
+
 from architecture_utils import get_backbone, get_cf_predictor, get_classifier
 
 logger = logging.getLogger(__name__)
@@ -37,11 +32,6 @@ class LitModel(pl.LightningModule):
         self.backbone, out_feature_num = get_backbone(cfg["is_pretrained"])
         self.classifier = get_classifier(out_feature_num, num_target_classes)
         self.cf_layers = get_cf_predictor(out_feature_num, cf_vector_dim)
-
-        # For MTL
-        self.weighting_method = GradCosine(main_task=0.0)
-        if hasattr(self.cfg, "use_grad_cosine") and self.cfg.use_grad_cosine is True:
-            self.automatic_optimization = False
 
     def criterion_cf(
         self,
@@ -122,8 +112,6 @@ class LitModel(pl.LightningModule):
             self.cfg["label_weight"] * loss_calssification
             + self.cfg["cf_weight"] * loss_cf
         )
-        if phase == "train":
-            self.manual_backward(loss_calssification, loss_cf)
 
         res_dict = {
             f"loss/{phase}": loss.detach(),
@@ -152,7 +140,6 @@ class LitModel(pl.LightningModule):
         labels = np.vstack([out["labels"] for out in outputs])
 
         # Metrics
-        auroc = roc_auc_score(labels, preds)
         ap = average_precision_score(labels, preds)
         f1 = f1_score(labels, preds > 0.5, average="macro")
 
@@ -164,7 +151,6 @@ class LitModel(pl.LightningModule):
 
         self.log_dict(
             {
-                f"auroc/{phase}": auroc,
                 f"ap/{phase}": ap,
                 f"f1/{phase}": f1,
             },
@@ -181,9 +167,9 @@ class LitModel(pl.LightningModule):
             prog_bar=False,
         )
 
-        loss, auroc, ap, f1 = np.round([loss, auroc, ap, f1], 3)
+        loss, ap, f1 = np.round([loss, ap, f1], 3)
         logger.info(
-            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, auroc, ap, f1]=}"
+            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, ap, f1]=}"
         )
 
         if phase == "val" and ap > self.map_best:
@@ -231,26 +217,6 @@ class LitModel(pl.LightningModule):
         # Average recall
         recall_rate = recall_sum / item_num
         return recall_rate
-
-    def manual_backward(self, loss_classification, loss_cf):
-        if self.automatic_optimization is True:
-            return
-        self._verify_is_manual_optimization("manual_backward")
-
-        opt = self.optimizers()
-        opt.zero_grad()
-
-        # Weight losses and backward
-        shared_parameters = [p for _, p in self.backbone.named_parameters()]
-        self.weighting_method.backward(
-            [loss_classification, loss_cf],
-            shared_parameters=shared_parameters,
-            retain_graph=False,
-        )
-
-        # Update parameters
-        opt.step()
-        # opt.zero_grad()
 
 
 class LitModelCFBased(LitModel):

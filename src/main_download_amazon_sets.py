@@ -58,7 +58,7 @@ def filter_meta_df(df_meta: pd.DataFrame, df_review: pd.DataFrame):
 
 @hydra.main(
     config_path="../configs",
-    config_name="download_data",
+    config_name="download_amazon_sets",
 )
 def download_data(cfg):
     logger.info(cfg)

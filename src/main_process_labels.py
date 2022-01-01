@@ -157,7 +157,7 @@ def process_labels(cfg: DictConfig):
 
     # Find top level label name by most ferquent
     toplevel_all_labels = [sublist[0][0] for sublist in df["categories"].tolist()]
-    toplevel_label = max(set(toplevel_all_labels), key = toplevel_all_labels.count)
+    toplevel_label = max(set(toplevel_all_labels), key=toplevel_all_labels.count)
 
     # Merge label hierarchy:
     # For example: [Clothing, Shoes & Jewelry + Girls + Clothing + Swim] -> [Clothing, Shoes & Jewelry + Girls + Clothing]
@@ -201,16 +201,16 @@ def process_labels(cfg: DictConfig):
     df_train = df_train.reset_index()
     df_train.to_pickle(out_path)
     logger.info(f"Save to {out_path}")
-    out_path = osp.join(out_dir,'..', "df_train.pkl")
+    out_path = osp.join(out_dir, "..", "df_train.pkl")
     df_train.to_pickle(out_path)
-    logger.info(f"Save to {out_path}") 
+    logger.info(f"Save to {out_path}")
 
     # Save test
     out_path = osp.join(out_dir, "df_test.pkl")
     df_test = df_test.reset_index()
     df_test.to_pickle(out_path)
     logger.info(f"Save to {out_path}")
-    out_path = osp.join(out_dir,'..', "df_test.pkl")
+    out_path = osp.join(out_dir, "..", "df_test.pkl")
     df_test.to_pickle(out_path)
     logger.info(f"Save to {out_path}")
 

@@ -53,9 +53,9 @@ def train_model(cfg: DictConfig):
         cfg.is_use_bias,
         cf_based_train_loss_path=cfg.cf_based_train_loss_path,
         cf_based_test_loss_path=cfg.cf_based_test_loss_path,
-        is_use_cf_embeddings= cfg.is_use_cf_embeddings,
-        cf_embeddings_train_path = cfg.cf_embeddings_train_path,
-        cf_embeddings_test_path = cfg.cf_embeddings_test_path,
+        is_use_cf_embeddings=cfg.is_use_cf_embeddings,
+        cf_embeddings_train_path=cfg.cf_embeddings_train_path,
+        cf_embeddings_test_path=cfg.cf_embeddings_test_path,
         confidence_type=cfg.confidence_type,
     )
     logger.info(f"Loadded data in {time.time() -t0 :.2f} sec")
@@ -64,7 +64,7 @@ def train_model(cfg: DictConfig):
             dataset_meta["train_set_size"],
             dataset_meta["test_set_size"],
             dataset_meta["num_classes"],
-            dataset_meta["cf_vector_dim"]
+            dataset_meta["cf_vector_dim"],
         )
     )
 
@@ -97,7 +97,8 @@ def train_model(cfg: DictConfig):
         ],
         fast_dev_run=cfg.is_debug,
         num_sanity_val_steps=0,
-        gradient_clip_val=cfg.gradient_clip_val if cfg.use_grad_cosine is False else 0.0,
+        gradient_clip_val=cfg.gradient_clip_val,
+        gradient_clip_algorithm="value",
         gpus=[cfg.gpu] if torch.cuda.is_available() else None,
     )
     trainer.fit(lit_h, trainloader, testloader)

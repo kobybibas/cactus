@@ -114,7 +114,9 @@ def train_model_cf_based(cfg: DictConfig):
         gpus=[cfg.gpu] if torch.cuda.is_available() else None,
     )
     trainer.fit(lit_h, trainloader, testloader)
-    logger.info(f"Finish training in {time.time() -t_start :.2f} sec")
+    logger.info(
+        f"Finish training in {time.time() -t_start :.2f} sec. {lit_h.map_best=}"
+    )
     logger.info(f"{os.getcwd()=}")
 
     # Save confidence

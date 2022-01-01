@@ -10,8 +10,8 @@ import torch
 from cornac.eval_methods import RatioSplit
 from cornac.metrics import AUC, MAP
 from omegaconf import DictConfig
-from recommender_utils import AmazonClothing
-from vae_utils import VAECFWithBias
+
+from recommender_utils import RecommendationDataset, VAECFWithBias
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ def train_recommender(cfg: DictConfig):
     logger.info(os.getcwd())
 
     # Initalize dataset
-    dataset_h = AmazonClothing(cfg.data_dir, cfg.category, cfg.user_based)
+    dataset_h = RecommendationDataset(cfg.data_dir, cfg.category, cfg.user_based)
     dataset = dataset_h.load_feedback()
     rs = RatioSplit(
         data=dataset,
@@ -38,7 +38,31 @@ def train_recommender(cfg: DictConfig):
     )
 
     # Initalize model
-    most_pop = cornac.models.MostPop()
+    models = []
+    if "most_pop" in cfg.models:
+        model = cornac.models.MostPop()
+        models.append(model)
+    if "bpr" in cfg.models:
+        model = cornac.models.BPR(
+            k=10, max_iter=1000, learning_rate=0.001, lambda_reg=0.001, seed=123
+        )
+        models.append(model)
+    if "vae_no_bias" in cfg.models:
+        model = cornac.models.VAECF(
+            k=cfg.bottleneck_size,
+            autoencoder_structure=list(cfg.emb_size),
+            act_fn="tanh",
+            likelihood="mult",
+            n_epochs=cfg.n_epochs,
+            batch_size=cfg.batch_size,
+            learning_rate=cfg.lr,
+            beta=cfg.beta,
+            seed=cfg.seed,
+            use_gpu=True,
+            verbose=True,
+        )
+        models.append(model)
+
     vaecf = VAECFWithBias(
         k=cfg.bottleneck_size,
         autoencoder_structure=list(cfg.emb_size),
@@ -52,14 +76,18 @@ def train_recommender(cfg: DictConfig):
         seed=cfg.seed,
         use_gpu=True,
         verbose=True,
-        out_dir=out_dir
+        out_dir=out_dir,
     )
+    models.append(vaecf)
 
     # Run training
     t0 = time.time()
     metrics = [AUC(), MAP()]
     cornac.Experiment(
-        eval_method=rs, models=[most_pop, vaecf], metrics=metrics, user_based=False
+        eval_method=rs,
+        models=models,
+        metrics=metrics,
+        user_based=False,
     ).run()
 
     logger.info(f"Finish training in {time.time() -t0:.2f} sec")

@@ -25,10 +25,7 @@ weight_decay: 1e-5
 lr: 1e-1
 milestones: [65,99]
 epochs: 100
-gradient_clip_val: 1.0
-use_grad_cosine: false
-
-
+gradient_clip_val: 0.0  # 1.0
 
 label_weight: 1.0 # The loss weight for binary label loss
 cf_weight: 2.0  # The loss weight for cf vectors

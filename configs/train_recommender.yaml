@@ -1,10 +1,12 @@
 # Data params
-data_dir: /data/amazon_dataset
-category: Beauty # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games
+data_dir: /data/amazon_dataset # /data/amazon_dataset
+category: Clothing_Shoes_and_Jewelry # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Beauty/Toys_and_Games/flicker
 emb_size: [64]
 bottleneck_size: 32
 test_size: 0.1
 user_based: true
+
+models: []
 
 # Optimization params
 batch_size: 4096
