@@ -185,6 +185,7 @@ def get_datasets(
 
     # Add CF vectors
     t0 = time.time()
+    cf_df['asin'] = cf_df['asin'].astype(df_train['asin'].dtype)
     df_train = pd.merge(df_train, cf_df, on=["asin"], how="inner")
     df_test = pd.merge(df_test, cf_df, on=["asin"], how="inner")
     logger.info(

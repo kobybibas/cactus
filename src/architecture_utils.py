@@ -2,14 +2,20 @@ import torch.nn as nn
 import torchvision.models as models
 
 
-def get_backbone(is_pretrained: bool):
+def get_backbone(is_pretrained: bool, arch: str = "resnet18"):
     # Define the backbone
-    backbone = models.resnet18(pretrained=is_pretrained)
-    out_feature_num = backbone.fc.in_features
+    if arch == "resnet18":
+        backbone = models.resnet18(pretrained=is_pretrained)
+        out_feature_num = backbone.fc.in_features
+        layers = list(backbone.children())[:-1]
 
-    layers = list(backbone.children())[:-1]
+    elif arch == "mobilenet":
+        backbone = models.mobilenet_v2(pretrained=True)
+        out_feature_num = backbone.classifier[-1].in_features
+        layers = list(backbone.children())[:-1] + [nn.AdaptiveAvgPool2d((1,1))]
+    else:
+        raise ValueError(f"{arch=}")
     backbone = nn.Sequential(*layers)
-
     return backbone, out_feature_num
 
 

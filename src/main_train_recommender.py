@@ -26,6 +26,7 @@ def train_recommender(cfg: DictConfig):
     logger.info(os.getcwd())
 
     # Initalize dataset
+    t1 = time.time()
     dataset_h = RecommendationDataset(cfg.data_dir, cfg.category, cfg.user_based)
     dataset = dataset_h.load_feedback()
     rs = RatioSplit(
@@ -36,6 +37,7 @@ def train_recommender(cfg: DictConfig):
         exclude_unknowns=True,
         verbose=True,
     )
+    logger.info(f"Loaded dataset in {time.time()-t1:.2f}")
 
     # Initalize model
     models = []
@@ -119,6 +121,7 @@ def train_recommender(cfg: DictConfig):
     out_path = osp.join(out_dir, "..", "cf_df.pkl")
     logger.info(out_path)
     df.to_pickle(out_path)
+    logger.info(f"Finish in {time.time()-t0:.2f} sec")
 
 
 if __name__ == "__main__":

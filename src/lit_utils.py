@@ -29,7 +29,7 @@ class LitModel(pl.LightningModule):
         self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
         # Define the archotecture
-        self.backbone, out_feature_num = get_backbone(cfg["is_pretrained"])
+        self.backbone, out_feature_num = get_backbone(cfg["is_pretrained"], cfg["arch"])
         self.classifier = get_classifier(out_feature_num, num_target_classes)
         self.cf_layers = get_cf_predictor(out_feature_num, cf_vector_dim)
 
@@ -70,9 +70,9 @@ class LitModel(pl.LightningModule):
         return loss
 
     def forward(self, x):
-        representations = self.backbone(x).flatten(1)
-        y_hat = self.classifier(representations)
-        cf_hat = self.cf_layers(representations)
+        z = self.backbone(x).flatten(1)
+        y_hat = self.classifier(z)
+        cf_hat = self.cf_layers(z)
         return y_hat, cf_hat
 
     def _loss_helper(self, batch, phase: str):
