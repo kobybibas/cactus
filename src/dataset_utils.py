@@ -100,20 +100,30 @@ def get_loss_based_confidence(cf_based_loss_path: str):
     return cf_confidence
 
 
-def pos_label_loss_based(cf_based_loss_path, label_vecs: pd.Series):
+def pos_label_loss_based(
+    cf_based_loss_path: str, label_vecs: pd.Series
+) -> torch.tensor:
     assert cf_based_loss_path is not None
     cf_based_loss = torch.load(cf_based_loss_path)
-    label_vecs = np.array(label_vecs.tolist())
+    label_vecs = torch.tensor(label_vecs.tolist()).bool()
 
     # Get only loss of GT labels
-    loss_mean = (cf_based_loss * label_vecs).mean(axis=1)
+    loss_mean = torch.tensor(
+        [values[mask].mean() for values, mask in zip(cf_based_loss, label_vecs)]
+    )
     cf_confidence = 1 / loss_mean
+
+    # For samples without positive labels: set the confidence to 0
+    cf_confidence[torch.isnan(cf_confidence)] = 0.0
+
     return cf_confidence
 
 
 def clip_confidence(cf_conf_train: np.ndarray, cf_conf_test: np.ndarray) -> np.ndarray:
-    upper_limit = np.percentile(cf_conf_train, 90)
-    lower_limit = np.percentile(cf_conf_train, 10)
+    # upper_limit = np.percentile(cf_conf_train, 90)
+    # lower_limit = np.percentile(cf_conf_train, 10)
+    upper_limit = np.percentile(cf_conf_train, 66)
+    lower_limit = np.percentile(cf_conf_train, 33)
     cf_conf_train_clipped = np.minimum(cf_conf_train, upper_limit)
     cf_conf_train_clipped = np.maximum(cf_conf_train_clipped, lower_limit)
     cf_conf_test_clipped = np.minimum(cf_conf_test, upper_limit)
@@ -153,22 +163,24 @@ def plot_and_save_conf_histogram(
     cf_conf_clipped: np.ndarray,
 ):
     mask = np.isfinite(cf_conf)
-    value_min,value_max = np.round([np.min(cf_conf_clipped), np.max(cf_conf_clipped)],2)
+    value_min, value_max = np.round(
+        [np.min(cf_conf_clipped), np.max(cf_conf_clipped)], 2
+    )
     _, axs = plt.subplots(2, 1, sharex=False)
     ax = axs[0]
-    _, bins, _ = ax.hist(cf_conf[mask], bins=100, alpha=0.5, label="raw",color='C0')
-    ax.hist(cf_conf_clipped, bins=bins, alpha=0.5, label="clipped",color='C1')
+    _, bins, _ = ax.hist(cf_conf[mask], bins=100, alpha=0.5, label="raw", color="C0")
+    ax.hist(cf_conf_clipped, bins=bins, alpha=0.5, label="clipped", color="C1")
     ax.set_ylabel("Count")
-    ax.set_yscale('log')
+    ax.set_yscale("log")
     ax.legend()
     ax.set_title(f"Confidence {confidence_type=}")
 
     ax = axs[1]
-    ax.hist(cf_conf_clipped, bins=100, alpha=0.5, label="clipped",color='C1')
+    ax.hist(cf_conf_clipped, bins=100, alpha=0.5, label="clipped", color="C1")
     ax.set_ylabel("Count")
-    ax.set_yscale('log')
-    ax.set_yscale('log')
-    ax.set_xlabel(f'Confidnce value. [min max]=[{value_min} {value_max}]')
+    ax.set_yscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel(f"Confidnce value. [min max]=[{value_min} {value_max}]")
     plt.tight_layout()
     plt.savefig(osp.join(out_dir, "cf_confidence.jpg"))
     plt.close()
