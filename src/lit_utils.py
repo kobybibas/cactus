@@ -229,6 +229,7 @@ class LitModelCFBased(LitModel):
     ):
         # pl.LightningModule().__init__()
         cfg["is_pretrained"] = False
+        cfg["arch"] = 'resnet18'
         super().__init__(num_target_classes, cf_vector_dim, cfg, pos_weight)
 
         # Define the backbone

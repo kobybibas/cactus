@@ -19,13 +19,14 @@ weight_decay: 1e-5
 lr: 1
 milestones: [25, 55]
 epochs: 60
-use_grad_cosine: false
 
 # Flow params
 is_debug: false
 gpu: 0
 
-is_pretrained: false
+is_pretrained: false  # Ignored
+arch: resnet18 # Ignored
+
 
 hydra:
   run:

@@ -98,8 +98,7 @@ def train_model(cfg: DictConfig):
         fast_dev_run=cfg.is_debug,
         num_sanity_val_steps=0,
         gpus=[cfg.gpu] if torch.cuda.is_available() else None,
-        amp_backend="apex",
-        amp_level="O2",
+        precision=16
     )
     trainer.fit(lit_h, trainloader, testloader)
     logger.info(

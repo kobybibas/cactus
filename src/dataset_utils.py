@@ -100,9 +100,20 @@ def get_loss_based_confidence(cf_based_loss_path: str):
     return cf_confidence
 
 
+def pos_label_loss_based(cf_based_loss_path, label_vecs: pd.Series):
+    assert cf_based_loss_path is not None
+    cf_based_loss = torch.load(cf_based_loss_path)
+    label_vecs = np.array(label_vecs.tolist())
+
+    # Get only loss of GT labels
+    loss_mean = (cf_based_loss * label_vecs).mean(axis=1)
+    cf_confidence = 1 / loss_mean
+    return cf_confidence
+
+
 def clip_confidence(cf_conf_train: np.ndarray, cf_conf_test: np.ndarray) -> np.ndarray:
-    upper_limit = np.percentile(cf_conf_train, 95)
-    lower_limit = np.percentile(cf_conf_train, 5)
+    upper_limit = np.percentile(cf_conf_train, 90)
+    lower_limit = np.percentile(cf_conf_train, 10)
     cf_conf_train_clipped = np.minimum(cf_conf_train, upper_limit)
     cf_conf_train_clipped = np.maximum(cf_conf_train_clipped, lower_limit)
     cf_conf_test_clipped = np.minimum(cf_conf_test, upper_limit)
@@ -138,22 +149,26 @@ def assign_positive_cf(df_train, df_test):
 def plot_and_save_conf_histogram(
     out_dir: str,
     confidence_type: str,
-    cf_conf_train: np.ndarray,
-    cf_conf_train_clipped: np.ndarray,
-    cf_conf_test: np.ndarray,
-    cf_conf_test_clipped: np.ndarray,
+    cf_conf: np.ndarray,
+    cf_conf_clipped: np.ndarray,
 ):
-    _, axs = plt.subplots(2, 1, sharex=True)
+    mask = np.isfinite(cf_conf)
+    value_min,value_max = np.round([np.min(cf_conf_clipped), np.max(cf_conf_clipped)],2)
+    _, axs = plt.subplots(2, 1, sharex=False)
     ax = axs[0]
-    _, bins, _ = ax.hist(cf_conf_train, bins=100, alpha=0.5, label="raw")
-    ax.hist(cf_conf_train_clipped, bins=bins, alpha=0.5, label="clipped")
-    ax.set_ylabel("Train count")
+    _, bins, _ = ax.hist(cf_conf[mask], bins=100, alpha=0.5, label="raw",color='C0')
+    ax.hist(cf_conf_clipped, bins=bins, alpha=0.5, label="clipped",color='C1')
+    ax.set_ylabel("Count")
+    ax.set_yscale('log')
     ax.legend()
+    ax.set_title(f"Confidence {confidence_type=}")
+
     ax = axs[1]
-    ax.hist(cf_conf_test, bins=bins, alpha=0.5, label="raw")
-    ax.hist(cf_conf_test_clipped, bins=bins, alpha=0.5, label="clipped")
-    ax.set_ylabel("Test count")
-    ax.set_xlabel(f"Confidence {confidence_type=}")
+    ax.hist(cf_conf_clipped, bins=100, alpha=0.5, label="clipped",color='C1')
+    ax.set_ylabel("Count")
+    ax.set_yscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(f'Confidnce value. [min max]=[{value_min} {value_max}]')
     plt.tight_layout()
     plt.savefig(osp.join(out_dir, "cf_confidence.jpg"))
     plt.close()
@@ -185,7 +200,7 @@ def get_datasets(
 
     # Add CF vectors
     t0 = time.time()
-    cf_df['asin'] = cf_df['asin'].astype(df_train['asin'].dtype)
+    cf_df["asin"] = cf_df["asin"].astype(df_train["asin"].dtype)
     df_train = pd.merge(df_train, cf_df, on=["asin"], how="inner")
     df_test = pd.merge(df_test, cf_df, on=["asin"], how="inner")
     logger.info(
@@ -225,9 +240,16 @@ def get_datasets(
         cf_conf_test = get_loss_based_confidence(cf_based_test_loss_path)
 
     elif confidence_type == "num_intercations":
-        cf_conf_train = np.sqrt(df_train["num_intercations"])
-        cf_conf_test = np.sqrt(df_test["num_intercations"])
+        cf_conf_train = torch.from_numpy(np.sqrt(df_train["num_intercations"].values))
+        cf_conf_test = torch.from_numpy(np.sqrt(df_test["num_intercations"].values))
 
+    elif confidence_type == "pos_label_loss_based":
+        cf_conf_train = pos_label_loss_based(
+            cf_based_train_loss_path, df_train["label_vec"]
+        )
+        cf_conf_test = pos_label_loss_based(
+            cf_based_test_loss_path, df_test["label_vec"]
+        )
     else:
         raise ValueError(f"{confidence_type} is not supported")
     cf_conf_train_clipped, cf_conf_test_clipped = clip_confidence(
@@ -243,8 +265,6 @@ def get_datasets(
         confidence_type,
         cf_conf_train.numpy(),
         cf_conf_train_clipped.numpy(),
-        cf_conf_test.numpy(),
-        cf_conf_test_clipped.numpy(),
     )
     logger.info(f"Plotted CF confidence in {time.time() -t0 :.2f} sec. {out_dir=}")
 
