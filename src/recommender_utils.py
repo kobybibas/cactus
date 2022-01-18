@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import torch
 from cornac.data import Reader
-from cornac.metrics.ranking import MeasureAtK
 from cornac.models import VAECF
 from cornac.models.recommender import Recommender
 from cornac.models.vaecf.vaecf import VAE, learn
@@ -190,15 +189,6 @@ class VAECFWithBias(VAECF):
         return self
 
 
-class HitRate(MeasureAtK):
-    def __init__(self, k=-1):
-        super().__init__(name="HitRate@{}".format(k), k=k)
-
-    def compute(self, gt_pos, pd_rank, **kwargs):
-        tp, _, _ = MeasureAtK.compute(self, gt_pos, pd_rank, **kwargs)
-        return tp
-
-
 class RecommendationDataset:
     def __init__(
         self,
@@ -208,7 +198,6 @@ class RecommendationDataset:
     ) -> None:
         self.data_dir = data_dir
         self.category = category
-        self.user_vec_as_input = user_based
 
         self.review_path = osp.join(self.data_dir, f"reviews_{category}.pkl")
         self.rating_path = osp.join(self.data_dir, f"rating_{category}_user_based.txt")

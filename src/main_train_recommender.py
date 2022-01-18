@@ -112,16 +112,17 @@ def train_recommender(cfg: DictConfig):
         }
     )
 
-    # Save to: out path
-    out_path = osp.join(out_dir, "cf_df.pkl")
-    logger.info(out_path)
-    df.to_pickle(out_path)
+    if cfg.test_size == 0.0:
+        # Save to: out path
+        out_path = osp.join(out_dir, "cf_df.pkl")
+        logger.info(out_path)
+        df.to_pickle(out_path)
 
-    # Save to: dataset output top dir
-    out_path = osp.join(out_dir, "..", "cf_df.pkl")
-    logger.info(out_path)
-    df.to_pickle(out_path)
-    logger.info(f"Finish in {time.time()-t0:.2f} sec")
+        # Save to: dataset output top dir
+        out_path = osp.join(out_dir, "..", "cf_df.pkl")
+        logger.info(out_path)
+        df.to_pickle(out_path)
+        logger.info(f"Finish in {time.time()-t0:.2f} sec")
 
 
 if __name__ == "__main__":

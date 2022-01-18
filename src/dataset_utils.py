@@ -119,15 +119,44 @@ def pos_label_loss_based(
     return cf_confidence
 
 
-def clip_confidence(cf_conf_train: np.ndarray, cf_conf_test: np.ndarray) -> np.ndarray:
-    # upper_limit = np.percentile(cf_conf_train, 90)
-    # lower_limit = np.percentile(cf_conf_train, 10)
-    upper_limit = np.percentile(cf_conf_train, 66)
-    lower_limit = np.percentile(cf_conf_train, 33)
-    cf_conf_train_clipped = np.minimum(cf_conf_train, upper_limit)
-    cf_conf_train_clipped = np.maximum(cf_conf_train_clipped, lower_limit)
-    cf_conf_test_clipped = np.minimum(cf_conf_test, upper_limit)
-    cf_conf_test_clipped = np.maximum(cf_conf_test_clipped, lower_limit)
+def max_pos_label_loss_based(
+    cf_based_loss_path: str, label_vecs: pd.Series
+) -> torch.tensor:
+    assert cf_based_loss_path is not None
+    cf_based_loss = torch.load(cf_based_loss_path)
+    label_vecs = torch.tensor(label_vecs.tolist()).bool()
+
+    # Get only loss of GT labels
+    loss_mean = torch.tensor(
+        [values[mask].max() for values, mask in zip(cf_based_loss, label_vecs)]
+    )
+    cf_confidence = 1 / loss_mean
+
+    # For samples without positive labels: set the confidence to 0
+    cf_confidence[torch.isnan(cf_confidence)] = 0.0
+
+    return cf_confidence
+
+
+def clip_confidence(
+    cf_conf_train: torch.Tensor, cf_conf_test: torch.Tensor, max_min_ratio: float
+) -> np.ndarray:
+    lower_limit, upper_limit = torch.quantile(cf_conf_train, torch.tensor([0.25, 0.75]))
+    if max_min_ratio is None or lower_limit == upper_limit:
+        return cf_conf_train, cf_conf_test
+
+    cf_conf_train_clipped = torch.clip(cf_conf_train, lower_limit, upper_limit)
+    cf_conf_test_clipped = torch.clip(cf_conf_test, lower_limit, upper_limit)
+
+    # Normalize to keep min-max value between 1 and max_min_ratio
+    min_val, max_val =  cf_conf_train_clipped.min(), cf_conf_train_clipped.max()
+    cf_conf_train_clipped = 1 + (cf_conf_train_clipped - min_val)  * (max_min_ratio-1) / (max_val -min_val)
+    cf_conf_test_clipped = 1 + (cf_conf_test_clipped - min_val)  * (max_min_ratio-1) / (max_val -min_val)
+    # Log
+    min_val, max_val = cf_conf_train_clipped.min(), cf_conf_train_clipped.max()
+    logger.info(
+        f"clip_confidence: {max_min_ratio=} [min max]={min_val:.2f} {max_val:.2f}"
+    )
     return cf_conf_train_clipped, cf_conf_test_clipped
 
 
@@ -200,6 +229,8 @@ def get_datasets(
     cf_embeddings_train_path: str = None,
     cf_embeddings_test_path: str = None,
     confidence_type: str = "uniform",
+    conf_max_min_ratio: float = None,
+    is_plot_conf_hist: bool = True,
 ):
 
     t0 = time.time()
@@ -262,23 +293,32 @@ def get_datasets(
         cf_conf_test = pos_label_loss_based(
             cf_based_test_loss_path, df_test["label_vec"]
         )
+    elif confidence_type == "max_pos_label_loss_based":
+        cf_conf_train = max_pos_label_loss_based(
+            cf_based_train_loss_path, df_train["label_vec"]
+        )
+        cf_conf_test = max_pos_label_loss_based(
+            cf_based_test_loss_path, df_test["label_vec"]
+        )
+
     else:
         raise ValueError(f"{confidence_type} is not supported")
     cf_conf_train_clipped, cf_conf_test_clipped = clip_confidence(
-        cf_conf_train, cf_conf_test
+        cf_conf_train, cf_conf_test, conf_max_min_ratio
     )
 
     df_train["cf_confidence"] = cf_conf_train_clipped
     df_test["cf_confidence"] = cf_conf_test_clipped
     logger.info(f"CF confidence in {time.time() -t0 :.2f} sec.")
 
-    plot_and_save_conf_histogram(
-        out_dir,
-        confidence_type,
-        cf_conf_train.numpy(),
-        cf_conf_train_clipped.numpy(),
-    )
-    logger.info(f"Plotted CF confidence in {time.time() -t0 :.2f} sec. {out_dir=}")
+    if is_plot_conf_hist is True:
+        plot_and_save_conf_histogram(
+            out_dir,
+            confidence_type,
+            cf_conf_train.numpy(),
+            cf_conf_train_clipped.numpy(),
+        )
+        logger.info(f"Plotted CF confidence in {time.time() -t0 :.2f} sec. {out_dir=}")
 
     # Construct dataset
     train_dataset = DfDatasetWithCF(

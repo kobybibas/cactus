@@ -1,5 +1,5 @@
 # Data params
-category: Toys_and_Games # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games
+category: Toys_and_Games # Clothing_Shoes_and_Jewelry/Home_and_Kitchen/Toys_and_Games/pinterest
 cf_vector_df_path: ../outputs/${category}/cf_df.pkl
 train_df_path: ../outputs/${category}/df_train.pkl
 test_df_path: ../outputs/${category}/df_test.pkl

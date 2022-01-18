@@ -10,9 +10,14 @@ def get_backbone(is_pretrained: bool, arch: str = "resnet18"):
         layers = list(backbone.children())[:-1]
 
     elif arch == "mobilenet":
-        backbone = models.mobilenet_v2(pretrained=True)
+        backbone = models.mobilenet_v2(pretrained=is_pretrained)
         out_feature_num = backbone.classifier[-1].in_features
-        layers = list(backbone.children())[:-1] + [nn.AdaptiveAvgPool2d((1,1))]
+        layers = list(backbone.children())[:-1] + [nn.AdaptiveAvgPool2d((1, 1))]
+
+    elif arch == "regnet":
+        backbone = models.regnet_y_400mf(pretrained=is_pretrained) # models.squeezenet1_1(pretrained=is_pretrained)
+        out_feature_num = backbone.fc.in_features
+        layers = list(backbone.children())[:-1]
     else:
         raise ValueError(f"{arch=}")
     backbone = nn.Sequential(*layers)

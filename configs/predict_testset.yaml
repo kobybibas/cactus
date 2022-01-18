@@ -1,0 +1,20 @@
+# Data params
+dataset_name: Beauty # Clothing_Shoes_and_Jewelry/Toys_and_Games/Beauty/movielens/pinterest
+dir_path: ../outputs/${dataset_name}/results.yaml
+
+# Dataset params
+seed: 1234
+num_workers: 4
+batch_size: 256
+
+
+# Flow params
+is_debug: false
+gpu: 0
+
+hydra:
+  run:
+    dir: ../outputs/${dataset_name}/predict_testset_${now:%Y%m%d_%H%M%S}
+  sweep:
+    dir: .
+    subdir: ../outputs/${dataset_name}/predict_testset_${now:%Y%m%d_%H%M%S}

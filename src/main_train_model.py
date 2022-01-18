@@ -57,6 +57,7 @@ def train_model(cfg: DictConfig):
         cf_embeddings_train_path=cfg.cf_embeddings_train_path,
         cf_embeddings_test_path=cfg.cf_embeddings_test_path,
         confidence_type=cfg.confidence_type,
+        conf_max_min_ratio=cfg.conf_max_min_ratio
     )
     logger.info(f"Loadded data in {time.time() -t0 :.2f} sec")
     logger.info(

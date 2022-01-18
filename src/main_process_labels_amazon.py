@@ -3,6 +3,7 @@ import os
 import os.path as osp
 import time
 from itertools import chain
+import imghdr
 
 import hydra
 import numpy as np
@@ -11,6 +12,7 @@ from omegaconf import DictConfig
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 from torchvision.datasets.folder import default_loader as img_loader
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +54,11 @@ def remove_downlevel_hierarchy(labels: list, label_mapper: dict) -> list:
 
 
 def keep_only_exists_images(df: pd.DataFrame) -> pd.DataFrame:
-    img_exists = []
-    for img_path in df["img_path"]:
-        if osp.exists(img_path):
-            try:
-                img_loader(img_path)
-                img_exists.append(True)
-            except:
-                img_exists.append(False)
-        else:
-            img_exists.append(False)
-    df["img_exists"] = img_exists
+    df["img_exists"] = df["img_path"].apply(
+        lambda img_path: imghdr.what(img_path) is not None
+        if osp.exists(img_path)
+        else False
+    )
     logger.info(f"Img exsists {df.img_exists.sum()}/{len(df)}")
     return df[df["img_exists"] == True]
 
@@ -123,7 +119,7 @@ def execute_train_test_split(
 
 @hydra.main(
     config_path="../configs",
-    config_name="process_labels",
+    config_name="process_labels_amazon",
 )
 def process_labels(cfg: DictConfig):
     out_dir = os.getcwd()

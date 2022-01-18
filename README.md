@@ -57,3 +57,8 @@ python train_model.py -m category=Beauty lr=0.01 \
 python train_model.py -m category=Beauty lr=0.01 cf_weight=2.0 labeled_ratio=1.0 cf_topk_loss_ratio=0.9
 ```
 
+
+
+# TODO:
+1. Create npy prediction after training finished
+2. Train-test split only once for Amazon sets

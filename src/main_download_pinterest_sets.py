@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
-
+from main_process_labels import keep_only_exists_images
 from data_utils import DataHelper
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,6 @@ def download_data_to_folder(df: pd.DataFrame, data_helper, img_out_dir: str) -> 
         except:
             num_failed += 1
     logger.info(f"{len(df)=} {num_failed=}")
-    exist_img_paths = [osp.join(img_out_dir,file_name) for file_name in data_helper.list_files_in_dir(img_out_dir) ]
-    return exist_img_paths
 
 
 def save_train_test_split(df: pd.DataFrame, out_dir: str, train_set_ratio: float):
@@ -102,16 +100,17 @@ def download_pinterest_data(cfg):
     url_df = url_df[url_df["pin_id"].isin(pin_id_to_keep)]
     logger.info(f"Filtered {time.time()-t1:.2f}[s]. {[len(url_df),len(repin_df)]=}")
 
-    # Download data
+     # Download data
     t1 = time.time()
+    len_init = len(url_df)
     url_df["img_path"] = url_df["pin_id"].apply(
         lambda x: osp.abspath(osp.join(img_out_dir, str(x) + ".jpg"))
     )
-    exist_img_path = download_data_to_folder(url_df, data_helper, img_out_dir)
+    download_data_to_folder(url_df, data_helper, img_out_dir)
+    url_df = keep_only_exists_images(url_df)
     logger.info(
-        f"Downloaded files in {time.time()-t1:.2f}[s]. {len(exist_img_path)}/{len(url_df)}"
+        f"Downloaded files in {time.time()-t1:.2f}[s]. {len(url_df)}/{len_init}"
     )
-    url_df = url_df[url_df["img_path"].isin(exist_img_path)]
 
     # Create unified df: use intersection of pin_id
     df = pd.merge(repin_df, url_df, on=["pin_id"], how="inner")
