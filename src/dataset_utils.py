@@ -118,6 +118,25 @@ def pos_label_loss_based(
 
     return cf_confidence
 
+def pos_label_loss_based_norm(
+    cf_based_loss_path: str, label_vecs: pd.Series
+) -> torch.tensor:
+    assert cf_based_loss_path is not None
+    cf_based_loss = torch.load(cf_based_loss_path)
+    label_vecs = torch.tensor(label_vecs.tolist()).bool()
+
+    # Nornalize loss to 1.0 per category
+    loss_norm  = cf_based_loss/ (cf_based_loss * label_vecs).sum(axis=0)
+    
+    # Average loss for only GT positive labels
+    loss_mean = (loss_norm * label_vecs).sum(axis=1) / label_vecs.sum(axis=1)
+
+    cf_confidence = 1 / loss_mean
+
+    # For samples without positive labels: set the confidence to 0
+    cf_confidence[torch.isnan(cf_confidence)] = 0.0
+
+    return cf_confidence
 
 def max_pos_label_loss_based(
     cf_based_loss_path: str, label_vecs: pd.Series
@@ -291,6 +310,13 @@ def get_datasets(
             cf_based_train_loss_path, df_train["label_vec"]
         )
         cf_conf_test = pos_label_loss_based(
+            cf_based_test_loss_path, df_test["label_vec"]
+        )
+    elif confidence_type == "pos_label_loss_based_norm":
+        cf_conf_train = pos_label_loss_based_norm(
+            cf_based_train_loss_path, df_train["label_vec"]
+        )
+        cf_conf_test = pos_label_loss_based_norm(
             cf_based_test_loss_path, df_test["label_vec"]
         )
     elif confidence_type == "max_pos_label_loss_based":

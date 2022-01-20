@@ -3,20 +3,15 @@ import os
 import os.path as osp
 
 import hydra
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy
-import torch
-from hydra.utils import get_original_cwd, to_absolute_path
+from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 from scipy.stats import ttest_rel
 from sklearn.metrics import average_precision_score, f1_score
-from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-
-from dataset_utils import get_datasets
-from lit_utils import LitModel
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +38,7 @@ def compare_results(preds_dict: dict, eval_function, metric_dict: dict):
             labels, no_cf_preds, with_cf_preds, eval_function
         )
         metric_dict[dataset_name] = df
-        print(df[["no_cf", "with_cf"]].round(2).T)
+        logger.info(df[["no_cf", "with_cf", "improvement"]].round(3).T)
     return metric_dict
 
 
@@ -96,34 +91,83 @@ def single_set_compare_results(
     return df
 
 
-def plot_performance(df):
-    fig, ax = plt.subplots(1, 1, dpi=150)
-    ax.plot(df.index, df["no_cf"], label="Baseline")
-    ax.plot(df.index, df["with_cf"], label="With CF")
-
-    for i, key in enumerate(["no_cf", "with_cf"]):
-        ax.fill_between(
-            df.index,
-            df[key] - df[key + "_ci"],
-            df[key] + df[key + "_ci"],
-            color=f"C{i}",
-            alpha=0.1,
-        )
-
-    ax.set_xlabel("Label ratio")
-    ax.legend()
-    return ax
-
-
 def calc_top1_acc(labels, preds):
     return np.array(
         [labels[n][top1] for n, top1 in enumerate(np.argmax(preds, axis=1))]
     )
 
 
+def calc_recall_at_k(labels, preds, k: int = 5):
+    recalls = []
+    for pred, label in zip(torch.tensor(preds), torch.tensor(labels)):
+        _, pred_idx = torch.topk(pred, k=k)  # The predicted labels
+        label_idx = torch.where(label == 1)[0]  # The ground truth labels
+
+        # In case there are no labels
+        if len(label_idx) == 0:
+            continue
+
+        # Recal per item
+        recall_i = sum(el in pred_idx for el in label_idx) / len(label_idx)
+
+        recalls.append(recall_i)
+
+    return recalls
+
+
+def calc_recall_at_1(labels, preds):
+    return calc_recall_at_k(labels, preds, k=1)
+
+
+def calc_recall_at_3(labels, preds):
+    return calc_recall_at_k(labels, preds, k=3)
+
+
+def calc_recall_at_5(labels, preds):
+    return calc_recall_at_k(labels, preds, k=5)
+
+
+def calc_recall_at_10(labels, preds):
+    return calc_recall_at_k(labels, preds, k=10)
+
+
+def calc_precision_at_k(labels, preds, k: int = 5):
+    ps = []
+    for pred, label in zip(torch.tensor(preds), torch.tensor(labels)):
+        _, pred_idx = torch.topk(pred, k=k)  # The predicted labels
+        label_idx = torch.where(label == 1)[0]  # The ground truth labels
+
+        # In case there are no labels
+        if len(label_idx) == 0:
+            continue
+
+        # Recal per item
+        p_i = sum(el in label_idx for el in pred_idx) / k
+
+        ps.append(p_i)
+
+    return ps
+
+
+def calc_precision_at_1(labels, preds):
+    return calc_precision_at_k(labels, preds, k=1)
+
+
+def calc_precision_at_3(labels, preds):
+    return calc_precision_at_k(labels, preds, k=3)
+
+
+def calc_precision_at_5(labels, preds):
+    return calc_precision_at_k(labels, preds, k=5)
+
+
+def calc_precision_at_10(labels, preds):
+    return calc_precision_at_k(labels, preds, k=10)
+
+
 def calc_ap_score(labels, preds):
     aps = []
-    num_experiments = 100
+    num_experiments = 45
     num_samples = int(0.9 * len(labels))
 
     idxs_list = np.random.randint(
@@ -135,31 +179,6 @@ def calc_ap_score(labels, preds):
         ap = average_precision_score(labels_chosen[:, mask], preds_chosen[:, mask])
         aps.append(ap)
     return np.array(aps)
-
-
-def cale_f1_score(labels, preds, thresh=0.95):
-    f1s = []
-    num_experiments = 10
-    num_samples = int(0.9 * len(labels))
-    for _ in range(num_experiments):
-        idxs = np.random.randint(0, len(labels), num_samples)
-        labels_chosen, preds_chosen = labels[idxs], preds[idxs]
-        mask = labels_chosen.sum(axis=0) > 0
-        f1 = f1_score(
-            labels_chosen[:, mask], preds_chosen[:, mask] > thresh, average="samples"
-        )
-        f1s.append(f1)
-    return np.array(f1s)
-
-
-def plot_pvalues(df):
-    fig, ax = plt.subplots(1, 1, dpi=150)
-    ax.plot(df.index, df["pvalue"])
-    plt.axhline(y=0.05, color="r", linestyle="-", label="p=0.05")
-    ax.set_xlabel("Label ratio")
-    ax.set_ylabel("p-value")
-    ax.legend()
-    plt.show()
 
 
 def build_label_ratio_dicts(results_path):
@@ -192,7 +211,7 @@ def load_preds(base_path):
         ap_a = average_precision_score(labels, preds_a)  # ,average='micro')
         ap_b = average_precision_score(labels, preds_b)  # ,average='micro')
 
-        print(f"{key_a} {key_b} [{ap_a:.3f} {ap_b:.3f}]. size={len(preds_a)}")
+        print(f"{key_a} {key_b} [{ap_a:.3f} {ap_b:.3f}]. size={preds_a.shape}")
         no_cf_preds.append(preds_a)
         with_cf_preds.append(preds_b)
 
@@ -210,7 +229,6 @@ def load_preds(base_path):
 def evaluate_methods(cfg: DictConfig):
     os.chdir(get_original_cwd())
 
-    plt.style.use(["science", "ieee"])
     out_path = osp.join("../outputs/figures")
     metric_res_dicts_path = osp.join(out_path, "metric_res_dicts.npy")
 
@@ -219,6 +237,7 @@ def evaluate_methods(cfg: DictConfig):
         "Toys_and_Games": "Toys",
         "Clothing_Shoes_and_Jewelry": "Clothing",
         "movielens": "MovieLens",
+        "pinterest": "Pinterest",
     }
 
     preds_dict = {}
@@ -229,9 +248,17 @@ def evaluate_methods(cfg: DictConfig):
         )
 
     metric_funcs = {
-        "ap": calc_ap_score,
-        "top1_acc": calc_top1_acc,
-    }  # , 'f1':cale_f1_score}
+        "mAP": calc_ap_score,
+        "Top 1 accuracy": calc_top1_acc,
+        "Recall@1": calc_recall_at_1,
+        "Recall@3": calc_recall_at_3,
+        "Recall@5": calc_recall_at_5,
+        "Recall@10": calc_recall_at_10,
+        "Precision@1": calc_precision_at_1,
+        "Precision@3": calc_precision_at_3,
+        "Precision@5": calc_precision_at_5,
+        "Precision@10": calc_precision_at_10,
+    }
 
     if osp.exists(metric_res_dicts_path):
         metric_res_dicts = np.load(metric_res_dicts_path, allow_pickle=True).item()
@@ -254,7 +281,7 @@ def evaluate_methods(cfg: DictConfig):
         # Add to dict
         metric_res_dicts[metric_name] = single_metric_res_dict
         np.save(metric_res_dicts_path, metric_res_dicts)
-        print()
+        logger.info("")
 
     np.save(metric_res_dicts_path, metric_res_dicts)
 

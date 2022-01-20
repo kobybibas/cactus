@@ -1,5 +1,5 @@
 # Data params
-category: Beauty # Clothing_Shoes_and_Jewelry/Toys_and_Games/Beauty/movielens/pinterest # TODO
+category: Toys_and_Games # Clothing_Shoes_and_Jewelry/Toys_and_Games/Beauty/movielens/pinterest
 cf_vector_df_path: ../outputs/${category}/cf_df.pkl
 train_df_path: ../outputs/${category}/df_train.pkl
 test_df_path: ../outputs/${category}/df_test.pkl
@@ -17,7 +17,7 @@ labeled_ratio: 1.0 # Traninig set amount to contain label
 recall_at_k: []
 is_use_bias: true
 is_use_cf_embeddings: false
-confidence_type: uniform # Options: uniform/num_intercations/loss_based/pos_label_loss_based/max_pos_label_loss_based # TODO
+confidence_type: pos_label_loss_based_norm # Options: uniform/num_intercations/loss_based/pos_label_loss_based/max_pos_label_loss_based/pos_label_loss_based_norm
 conf_max_min_ratio: 3.0 # Confidence interval size
 
 # Optimization params
