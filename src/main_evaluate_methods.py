@@ -27,7 +27,7 @@ def mean_confidence_interval(data, confidence=0.9):
 def compare_results(preds_dict: dict, eval_function, metric_dict: dict):
     for dataset_name, dataset_dict in preds_dict.items():
         print(dataset_name)
-        if dataset_name in metric_dict:
+        if dataset_name in metric_dict: # and dataset_name != 'MovieLens'
             print(f"{dataset_name} exists in metric_dict")
             continue
 
@@ -167,7 +167,7 @@ def calc_precision_at_10(labels, preds):
 
 def calc_ap_score(labels, preds):
     aps = []
-    num_experiments = 45
+    num_experiments = 50
     num_samples = int(0.9 * len(labels))
 
     idxs_list = np.random.randint(

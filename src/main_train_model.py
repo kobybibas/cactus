@@ -76,11 +76,13 @@ def train_model(cfg: DictConfig):
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
         shuffle=True,
+        pin_memory=True
     )
     testloader = DataLoader(
         test_dataset,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
+        pin_memory=True
     )
 
     # Load model
