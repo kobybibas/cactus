@@ -1,10 +1,8 @@
 cd ../src
-python main_train_model.py category=Clothing_Shoes_and_Jewelry \
+python train_model_with_cf_pretraining.py category=Clothing_Shoes_and_Jewelry \
     arch=resnet18 \
-    batch_size=256 \
-    cf_weight=2.0 \
-    confidence_type=loss_based
-    cf_loss_type=exp 
+    batch_size=512 \
+    epochs=100
 
 python main_train_model.py category=Clothing_Shoes_and_Jewelry \
     arch=resnet18 \

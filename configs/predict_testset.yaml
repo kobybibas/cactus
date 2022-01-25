@@ -1,12 +1,11 @@
 # Data params
-dataset_name: Beauty # Clothing_Shoes_and_Jewelry/Toys_and_Games/Beauty/movielens/pinterest
+dataset_name: pinterest # pinterest/movielens/Clothing_Shoes_and_Jewelry/Toys_and_Games/
 dir_path: ../outputs/${dataset_name}/results.yaml
 
 # Dataset params
 seed: 1234
 num_workers: 4
 batch_size: 256
-
 
 # Flow params
 is_debug: false

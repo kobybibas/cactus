@@ -23,7 +23,7 @@ def load_cfg_file(base_dir: str):
 
 
 def load_train_model(base_dir: str):
-    model_path = glob(osp.join(base_dir, "*.ckpt"))[0]
+    model_path = glob(osp.join(base_dir, "epoch*.ckpt"))[0]
     haparam_path = glob(osp.join(base_dir, "default", "version_0", "hparams.yaml"))[0]
     model = LitModel.load_from_checkpoint(model_path, hparams_file=haparam_path)
     model.eval()
@@ -40,6 +40,8 @@ def predict_testset(cfg: DictConfig):
     dir_path = cfg.dir_path
 
     resource_dict = OmegaConf.load(dir_path)
+    logger.info(resource_dict)
+
     resource_dict = {
         key: osp.join(resource_dict["base_path"], value)
         for key, value in resource_dict.items()

@@ -118,44 +118,6 @@ def pos_label_loss_based(
 
     return cf_confidence
 
-def pos_label_loss_based_norm(
-    cf_based_loss_path: str, label_vecs: pd.Series
-) -> torch.tensor:
-    assert cf_based_loss_path is not None
-    cf_based_loss = torch.load(cf_based_loss_path)
-    label_vecs = torch.tensor(label_vecs.tolist()).bool()
-
-    # Nornalize loss to 1.0 per category
-    loss_norm  = cf_based_loss/ (cf_based_loss * label_vecs).sum(axis=0)
-    
-    # Average loss for only GT positive labels
-    loss_mean = (loss_norm * label_vecs).sum(axis=1) / label_vecs.sum(axis=1)
-
-    cf_confidence = 1 / loss_mean
-
-    # For samples without positive labels: set the confidence to 0
-    cf_confidence[torch.isnan(cf_confidence)] = 0.0
-
-    return cf_confidence
-
-def max_pos_label_loss_based(
-    cf_based_loss_path: str, label_vecs: pd.Series
-) -> torch.tensor:
-    assert cf_based_loss_path is not None
-    cf_based_loss = torch.load(cf_based_loss_path)
-    label_vecs = torch.tensor(label_vecs.tolist()).bool()
-
-    # Get only loss of GT labels
-    loss_mean = torch.tensor(
-        [values[mask].max() for values, mask in zip(cf_based_loss, label_vecs)]
-    )
-    cf_confidence = 1 / loss_mean
-
-    # For samples without positive labels: set the confidence to 0
-    cf_confidence[torch.isnan(cf_confidence)] = 0.0
-
-    return cf_confidence
-
 
 def clip_confidence(
     cf_conf_train: torch.Tensor, cf_conf_test: torch.Tensor, max_min_ratio: float
@@ -168,9 +130,13 @@ def clip_confidence(
     cf_conf_test_clipped = torch.clip(cf_conf_test, lower_limit, upper_limit)
 
     # Normalize to keep min-max value between 1 and max_min_ratio
-    min_val, max_val =  cf_conf_train_clipped.min(), cf_conf_train_clipped.max()
-    cf_conf_train_clipped = 1 + (cf_conf_train_clipped - min_val)  * (max_min_ratio-1) / (max_val -min_val)
-    cf_conf_test_clipped = 1 + (cf_conf_test_clipped - min_val)  * (max_min_ratio-1) / (max_val -min_val)
+    min_val, max_val = cf_conf_train_clipped.min(), cf_conf_train_clipped.max()
+    cf_conf_train_clipped = 1 + (cf_conf_train_clipped - min_val) * (
+        max_min_ratio - 1
+    ) / (max_val - min_val)
+    cf_conf_test_clipped = 1 + (cf_conf_test_clipped - min_val) * (
+        max_min_ratio - 1
+    ) / (max_val - min_val)
     # Log
     min_val, max_val = cf_conf_train_clipped.min(), cf_conf_train_clipped.max()
     logger.info(
@@ -310,20 +276,6 @@ def get_datasets(
             cf_based_train_loss_path, df_train["label_vec"]
         )
         cf_conf_test = pos_label_loss_based(
-            cf_based_test_loss_path, df_test["label_vec"]
-        )
-    elif confidence_type == "pos_label_loss_based_norm":
-        cf_conf_train = pos_label_loss_based_norm(
-            cf_based_train_loss_path, df_train["label_vec"]
-        )
-        cf_conf_test = pos_label_loss_based_norm(
-            cf_based_test_loss_path, df_test["label_vec"]
-        )
-    elif confidence_type == "max_pos_label_loss_based":
-        cf_conf_train = max_pos_label_loss_based(
-            cf_based_train_loss_path, df_train["label_vec"]
-        )
-        cf_conf_test = max_pos_label_loss_based(
             cf_based_test_loss_path, df_test["label_vec"]
         )
 

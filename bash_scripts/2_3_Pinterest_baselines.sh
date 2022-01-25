@@ -1,14 +1,11 @@
 cd ../src
-python main_train_model.py category=pinterest \
+python train_model_with_cf_pretraining.py category=pinterest \
     arch=regnet \
-    batch_size=128 \
+    batch_size=256 \
     lr=0.1 \
     milestones=[10,14] \
-    epochs=15 \
-    cf_weight=5.0 \
-    confidence_type=loss_based \
-    cf_loss_type=exp
-
+    epochs=15
+    
 python main_train_model.py category=pinterest \
     arch=regnet \
     batch_size=128 \

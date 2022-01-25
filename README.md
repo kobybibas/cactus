@@ -1,64 +1,31 @@
+# Collaborative Image Understanding
 
 
-## Train recommender
-Avilable categories: Clothing_Shoes_and_Jewelry/Toys_and_Games/Home_and_Kitchen
-```
-python train_recommender.py category=Clothing_Shoes_and_Jewelry
-```
+## Download data
+Pinterest: https://nms.kcl.ac.uk/netsys/datasets/social-curation/dataset.html
 
-## Process labels
-```
-python process_labels.py category=Clothing_Shoes_and_Jewelry
-```
+MovieLens: https://www.kaggle.com/ghrzarea/movielens-20m-posters-for-machine-learning
 
-## Train vision model 
-```
-python train_model.py -m category=Clothing_Shoes_and_Jewelry cf_weight=0.0,2.0 labeled_ratio=0.4,0.6,0.8,0.9,1.0
-```
+Amazon product data (Clothing/Toys): http://jmcauley.ucsd.edu/data/amazon/
 
-
-# All
-```
-python train_recommender.py category=Clothing_Shoes_and_Jewelry num_samples_threshold=12
-python process_labels.py category=Clothing_Shoes_and_Jewelry
-python train_model.py -m category=Clothing_Shoes_and_Jewelry  \
-    cf_weight=0.0,2.0 \
-    labeled_ratio=0.4,0.6,0.8,0.9,1.0
-```
+## Run experiments
+To replicate the experiments for the Pinterst dataset
 
 ```
-python train_recommender.py category=Toys_and_Games
-python process_labels.py category=Toys_and_Games
-python train_model.py -m category=Toys_and_Games  \
-    cf_weight=0.0,2.0 \ 
-    labeled_ratio=0.4,0.6,0.8,0.9,1.0
-```
+cd bash_script
 
-```
-python train_recommender.py category=Home_and_Kitchen
-python process_labels.py category=Home_and_Kitchen
-python train_model.py -m category=Home_and_Kitchen  \ 
-    cf_weight=0.0,2.0 \ 
-    labeled_ratio=0.4,0.6,0.8,0.9,1.0
-```
+# Train recommender
+./2_1_pinterest_initial.sh
 
-```
-python train_recommender.py category=Beauty
-python process_labels.py category=Beauty
-python train_model.py -m category=Beauty lr=0.01 \
-    cf_weight=0.0,2.0 \
-    labeled_ratio=0.4,0.6,0.8,0.9,1.0
+# Optimize for the best cf weight
+./2_2_Pinterest_cf_weight.sh
 
+# Train baselines
+./2_3_Pinterest_baselines.sh
+
+# Train with different label ratio
+./2_4_Pinterest_label_ratio
 
 ```
 
-## Ablation
-```
-python train_model.py -m category=Beauty lr=0.01 cf_weight=2.0 labeled_ratio=1.0 cf_topk_loss_ratio=0.9
-```
-
-
-
-# TODO:
-1. Create npy prediction after training finished
-2. Train-test split only once for Amazon sets
+Follow the other files in the bash_script folder for the other datasets.

@@ -143,24 +143,11 @@ class LitModel(pl.LightningModule):
         ap = average_precision_score(labels, preds)
         f1 = f1_score(labels, preds > 0.5, average="macro")
 
-        # recall@k
-        recall_dict, hit_dict = {}, {}
-        for k in self.cfg["recall_at_k"]:
-            recall_rate = self.compute_recall_at_k(preds, labels, k=k)
-            recall_dict[f"recall@{k}/{phase}"] = recall_rate
-
         self.log_dict(
             {
                 f"ap/{phase}": ap,
                 f"f1/{phase}": f1,
             },
-            logger=True,
-            on_epoch=True,
-            on_step=False,
-            prog_bar=False,
-        )
-        self.log_dict(
-            {**recall_dict, **hit_dict},
             logger=True,
             on_epoch=True,
             on_step=False,
@@ -198,26 +185,6 @@ class LitModel(pl.LightningModule):
         )
         return [optimizer], [lr_scheduler]
 
-    def compute_recall_at_k(self, preds: np.ndarray, labels: np.ndarray, k: int = 5):
-        recall_sum, item_num = 0, 0
-        for pred, label in zip(torch.tensor(preds), torch.tensor(labels)):
-            _, pred_idx = torch.topk(pred, k=k)  # The predicted labels
-            label_idx = torch.where(label == 1)[0]  # The ground truth labels
-
-            # In case there are no labels
-            if len(label_idx) == 0:
-                continue
-
-            # Recal per item
-            recall_i = sum(el in pred_idx for el in label_idx) / len(label_idx)
-
-            recall_sum += recall_i
-            item_num += 1
-
-        # Average recall
-        recall_rate = recall_sum / item_num
-        return recall_rate
-
 
 class LitModelCFBased(LitModel):
     def __init__(
@@ -229,7 +196,7 @@ class LitModelCFBased(LitModel):
     ):
         # pl.LightningModule().__init__()
         cfg["is_pretrained"] = False
-        cfg["arch"] = 'resnet18'
+        cfg["arch"] = "resnet18"
         super().__init__(num_target_classes, cf_vector_dim, cfg, pos_weight)
 
         # Define the backbone
@@ -276,13 +243,4 @@ class LitModelCFBased(LitModel):
         res_dict["preds"] = preds.cpu().detach().numpy()
         res_dict["loss"] = loss
 
-        # Most pop prediction as baseline
-        if False:
-            popolarity = np.array(
-                self.train_dataloader.dataloader.dataset.df.label_vec.tolist()
-            ).sum(axis=0)
-            freq = popolarity / len(self.train_dataloader.dataloader.dataset.df)
-            res_dict["preds"] = freq[np.newaxis, :].repeat(
-                res_dict["preds"].shape[0], 0
-            )
         return res_dict

@@ -1,13 +1,10 @@
 cd ../src
-python main_train_model.py category=movielens \
+python train_model_with_cf_pretraining.py category=movielens \
     arch=mobilenet \
-    batch_size=128 \
+    batch_size=256 \
     lr=0.01 \
     milestones=[40] \
-    epochs=45 \
-    cf_weight=5.0 \
-    confidence_type=loss_based \
-    cf_loss_type=exp
+    epochs=45
 
 python main_train_model.py category=movielens \
     arch=mobilenet \

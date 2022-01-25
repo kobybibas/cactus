@@ -9,7 +9,7 @@ import scipy
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 from scipy.stats import ttest_rel
-from sklearn.metrics import average_precision_score, f1_score
+from sklearn.metrics import average_precision_score
 from tqdm import tqdm
 import torch
 
@@ -27,7 +27,7 @@ def mean_confidence_interval(data, confidence=0.9):
 def compare_results(preds_dict: dict, eval_function, metric_dict: dict):
     for dataset_name, dataset_dict in preds_dict.items():
         print(dataset_name)
-        if dataset_name in metric_dict: # and dataset_name != 'MovieLens'
+        if dataset_name in metric_dict:  # and dataset_name != 'MovieLens'
             print(f"{dataset_name} exists in metric_dict")
             continue
 
@@ -233,11 +233,10 @@ def evaluate_methods(cfg: DictConfig):
     metric_res_dicts_path = osp.join(out_path, "metric_res_dicts.npy")
 
     dataset_mapping = {
-        "Beauty": "Beauty",
-        "Toys_and_Games": "Toys",
-        "Clothing_Shoes_and_Jewelry": "Clothing",
-        "movielens": "MovieLens",
         "pinterest": "Pinterest",
+        "movielens": "MovieLens",
+        "Clothing_Shoes_and_Jewelry": "Clothing",
+        "Toys_and_Games": "Toys",
     }
 
     preds_dict = {}
@@ -250,14 +249,6 @@ def evaluate_methods(cfg: DictConfig):
     metric_funcs = {
         "mAP": calc_ap_score,
         "Top 1 accuracy": calc_top1_acc,
-        "Recall@1": calc_recall_at_1,
-        "Recall@3": calc_recall_at_3,
-        "Recall@5": calc_recall_at_5,
-        "Recall@10": calc_recall_at_10,
-        "Precision@1": calc_precision_at_1,
-        "Precision@3": calc_precision_at_3,
-        "Precision@5": calc_precision_at_5,
-        "Precision@10": calc_precision_at_10,
     }
 
     if osp.exists(metric_res_dicts_path):

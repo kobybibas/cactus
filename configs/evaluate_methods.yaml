@@ -1,5 +1,5 @@
 # Data params
-dataset_name: Beauty # Clothing_Shoes_and_Jewelry/Toys_and_Games/Beauty/movielens/pinterest
+dataset_name: Clothing_Shoes_and_Jewelry # Clothing_Shoes_and_Jewelry/Toys_and_Games/movielens/pinterest
 dir_path: ../outputs/${dataset_name}/results.yaml
 
 seed: 1234
