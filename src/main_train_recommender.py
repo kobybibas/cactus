@@ -45,10 +45,10 @@ def train_recommender(cfg: DictConfig):
         model = cornac.models.MostPop()
         models.append(model)
     if "bpr" in cfg.models:
-        model = cornac.models.BPR(
+        bpr = cornac.models.BPR(
             k=10, max_iter=1000, learning_rate=0.001, lambda_reg=0.001, seed=123
         )
-        models.append(model)
+        models.append(bpr)
     if "vae_no_bias" in cfg.models:
         model = cornac.models.VAECF(
             k=cfg.bottleneck_size,
@@ -65,22 +65,23 @@ def train_recommender(cfg: DictConfig):
         )
         models.append(model)
 
-    vaecf = VAECFWithBias(
-        k=cfg.bottleneck_size,
-        autoencoder_structure=list(cfg.emb_size),
-        act_fn="tanh",
-        likelihood="mult",
-        n_epochs=cfg.n_epochs,
-        batch_size=cfg.batch_size,
-        learning_rate=cfg.lr,
-        lr_steps=cfg.lr_steps,
-        beta=cfg.beta,
-        seed=cfg.seed,
-        use_gpu=True,
-        verbose=True,
-        out_dir=out_dir,
-    )
-    models.append(vaecf)
+    if "vae_no_bias" in cfg.models:
+        vaecf = VAECFWithBias(
+            k=cfg.bottleneck_size,
+            autoencoder_structure=list(cfg.emb_size),
+            act_fn="tanh",
+            likelihood="mult",
+            n_epochs=cfg.n_epochs,
+            batch_size=cfg.batch_size,
+            learning_rate=cfg.lr,
+            lr_steps=cfg.lr_steps,
+            beta=cfg.beta,
+            seed=cfg.seed,
+            use_gpu=True,
+            verbose=True,
+            out_dir=out_dir,
+        )
+        models.append(vaecf)
 
     # Run training
     t0 = time.time()
@@ -93,16 +94,25 @@ def train_recommender(cfg: DictConfig):
     ).run()
 
     logger.info(f"Finish training in {time.time() -t0:.2f} sec")
-    logger.info(vaecf.vae)
 
-    # Save vae model
-    out_path = osp.join(out_dir, "vae.pt")
-    torch.save(vaecf.vae.state_dict(), out_path)
+    if "bpr" in cfg.models:
+        logger.info(bpr)
+        
+        embs = bpr.i_factors
+        bias = bpr.i_biases
+        
+    if "vae_no_bias" in cfg.models:
+        logger.info(vaecf.vae)
+
+        # Save vae model
+        out_path = osp.join(out_dir, "vae.pt")
+        torch.save(vaecf.vae.state_dict(), out_path)
+
+        embs = vaecf.vae.decoder.fc1.weight.detach().cpu()
+        bias = vaecf.vae.item_bias.weight.detach().cpu().squeeze()
 
     # Create CF data frame
     num_intercations = rs.train_set.csc_matrix.sum(axis=0).tolist()[0]
-    embs = vaecf.vae.decoder.fc1.weight.detach().cpu()
-    bias = vaecf.vae.item_bias.weight.detach().cpu().squeeze()
     df = pd.DataFrame(
         {
             "asin": list(rs.train_set.item_ids),
@@ -111,13 +121,12 @@ def train_recommender(cfg: DictConfig):
             "num_intercations": num_intercations,
         }
     )
+    # Save to: out path
+    out_path = osp.join(out_dir, "cf_df.pkl")
+    logger.info(out_path)
+    df.to_pickle(out_path)
 
     if cfg.test_size == 0.0:
-        # Save to: out path
-        out_path = osp.join(out_dir, "cf_df.pkl")
-        logger.info(out_path)
-        df.to_pickle(out_path)
-
         # Save to: dataset output top dir
         out_path = osp.join(out_dir, "..", "cf_df.pkl")
         logger.info(out_path)

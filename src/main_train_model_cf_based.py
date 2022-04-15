@@ -133,13 +133,19 @@ def train_model_cf_based(cfg: DictConfig):
         loss_vec, cf_embeddings = get_loader_loss(lit_h, loader)
         out_path = osp.join(out_dir, f"cf_based_{set_name}_loss.pt")
         torch.save(loss_vec, out_path)
-        out_path = osp.join(out_dir, "..", f"cf_based_{set_name}_loss.pt")
-        torch.save(loss_vec, out_path)
+
+        if cfg.save_as_asset is True:
+            logger.info(f'{cfg.save_as_asset=}')
+            out_path = osp.join(out_dir, "..", f"cf_based_{set_name}_loss.pt")
+            torch.save(loss_vec, out_path)
 
         out_path = osp.join(out_dir, f"cf_embeddings_{set_name}.pt")
         torch.save(cf_embeddings, out_path)
-        out_path = osp.join(out_dir, "..", f"cf_embeddings_{set_name}.pt")
-        torch.save(cf_embeddings, out_path)
+
+        if cfg.save_as_asset is True:
+            logger.info(f'{cfg.save_as_asset=}')
+            out_path = osp.join(out_dir, "..", f"cf_embeddings_{set_name}.pt")
+            torch.save(cf_embeddings, out_path)
 
         logger.info(
             f"Finish get_loader_loss in {time.time() -t0 :.2f} sec. {cf_embeddings.shape} {out_path=}"
