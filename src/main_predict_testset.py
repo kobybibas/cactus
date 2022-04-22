@@ -96,11 +96,12 @@ def predict_testset(cfg: DictConfig):
 
         model = load_train_model(base_dir)
         model = model.to("cuda")
+        model.half()
 
         preds_list, labels = [], []
         for batch in tqdm(testloader):
             imgs, labels_i = batch[0], batch[3]
-            preds, _ = model(imgs.to("cuda"))
+            preds, _ = model(imgs.to("cuda").half())
             preds_list.append(torch.sigmoid(preds).cpu().numpy())
 
             labels.append(labels_i.numpy())

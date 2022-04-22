@@ -57,7 +57,7 @@ def train_model(cfg: DictConfig):
         cf_embeddings_train_path=cfg.cf_embeddings_train_path,
         cf_embeddings_test_path=cfg.cf_embeddings_test_path,
         confidence_type=cfg.confidence_type,
-        conf_max_min_ratio=cfg.conf_max_min_ratio
+        conf_max_min_ratio=cfg.conf_max_min_ratio,
     )
     logger.info(f"Loadded data in {time.time() -t0 :.2f} sec")
     logger.info(
@@ -76,18 +76,22 @@ def train_model(cfg: DictConfig):
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
         shuffle=True,
-        pin_memory=True
+        pin_memory=True,
     )
     testloader = DataLoader(
         test_dataset,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
-        pin_memory=True
+        pin_memory=True,
     )
 
     # Load model
     lit_h = LitModel(
-        dataset_meta["num_classes"], dataset_meta["cf_vector_dim"], cfg, pos_weight
+        dataset_meta["num_classes"],
+        dataset_meta["cf_vector_dim"],
+        cfg,
+        pos_weight,
+        out_dir=out_dir,
     )
     trainer = pl.Trainer(
         min_epochs=cfg["epochs"],
@@ -101,7 +105,7 @@ def train_model(cfg: DictConfig):
         fast_dev_run=cfg.is_debug,
         num_sanity_val_steps=0,
         gpus=[cfg.gpu] if torch.cuda.is_available() else None,
-        precision=16
+        precision=16,
     )
     trainer.fit(lit_h, trainloader, testloader)
     logger.info(

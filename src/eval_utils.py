@@ -27,7 +27,7 @@ def mean_confidence_interval(data, confidence=0.9):
 def compare_results(preds_dict: dict, eval_function, metric_dict: dict):
     for dataset_name, dataset_dict in preds_dict.items():
         print(dataset_name)
-        if dataset_name in metric_dict:  # and dataset_name != 'MovieLens'
+        if dataset_name in metric_dict and dataset_name != "Toys":
             print(f"{dataset_name} exists in metric_dict")
             continue
 
@@ -165,7 +165,7 @@ def calc_precision_at_10(labels, preds):
     return calc_precision_at_k(labels, preds, k=10)
 
 
-def calc_ap_score(labels, preds):
+def calc_ap_score(labels, preds) ->np.ndarray:
     aps = []
     num_experiments = 50
     num_samples = int(0.9 * len(labels))
@@ -178,6 +178,7 @@ def calc_ap_score(labels, preds):
         mask = labels_chosen.sum(axis=0) > 0
         ap = average_precision_score(labels_chosen[:, mask], preds_chosen[:, mask])
         aps.append(ap)
+
     return np.array(aps)
 
 
@@ -202,6 +203,7 @@ def load_preds(base_path):
     labels = np.load(osp.join(list(no_cf_dict.values())[0], "labels.npy"))
 
     no_cf_preds, with_cf_preds = [], []
+    no_cf_aps, with_cf_aps = [], []
     for (key_a, path_a), (key_b, path_b) in zip(
         no_cf_dict.items(), with_cf_dict.items()
     ):
@@ -210,15 +212,21 @@ def load_preds(base_path):
 
         ap_a = average_precision_score(labels, preds_a)  # ,average='micro')
         ap_b = average_precision_score(labels, preds_b)  # ,average='micro')
-
-        print(f"{key_a} {key_b} [{ap_a:.3f} {ap_b:.3f}]. size={preds_a.shape}")
+        ratio = 100 * ap_b / ap_a - 100
+        print(
+            f"{key_a} {key_b} [{ap_a:.3f} {ap_b:.3f} {ratio:.3f}%]. size={preds_a.shape}"
+        )
         no_cf_preds.append(preds_a)
         with_cf_preds.append(preds_b)
+        no_cf_aps.append(ap_a)
+        with_cf_aps.append(ap_b)
 
     return {
         "no_cf_preds": no_cf_preds,
         "with_cf_preds": with_cf_preds,
         "labels": labels,
+        "no_cf_ap": np.array(no_cf_aps),
+        "with_cf_ap": np.array(with_cf_aps),
     }
 
 
@@ -248,7 +256,6 @@ def evaluate_methods(cfg: DictConfig):
 
     metric_funcs = {
         "mAP": calc_ap_score,
-        "Top 1 accuracy": calc_top1_acc,
     }
 
     if osp.exists(metric_res_dicts_path):

@@ -29,3 +29,16 @@ cd bash_script
 ```
 
 Follow the other files in the bash_script folder for the other datasets.
+
+Then update result file
+```
+/home/ubuntu/cactus/outputs/pinterest/results.yaml
+```
+and run 
+```
+python main_predict_testset.py dataset_name=pinterest
+```
+Lastly to produce the figures run
+```
+python main_evaluate_methods.py 
+```

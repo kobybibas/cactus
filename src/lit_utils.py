@@ -5,7 +5,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from sklearn.metrics import average_precision_score, f1_score
-
+import os.path as osp
 from architecture_utils import get_backbone, get_cf_predictor, get_classifier
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,7 @@ class LitModel(pl.LightningModule):
         cf_vector_dim: int,
         cfg,
         pos_weight=None,
+        out_dir:str ='.'
     ):
         super().__init__()
         self.cfg = cfg
@@ -28,10 +29,14 @@ class LitModel(pl.LightningModule):
         pos_weight = torch.tensor(pos_weight) if pos_weight is not None else None
         self.criterion = nn.BCEWithLogitsLoss(reduction="none", pos_weight=pos_weight)
 
-        # Define the archotecture
+        # Define the architecture
         self.backbone, out_feature_num = get_backbone(cfg["is_pretrained"], cfg["arch"])
         self.classifier = get_classifier(out_feature_num, num_target_classes)
         self.cf_layers = get_cf_predictor(out_feature_num, cf_vector_dim)
+
+        # Save best prediction paths
+        self.preds_path = osp.join(out_dir, "preds.npy")
+        self.labels_path = osp.join(out_dir, "labels.npy")
 
     def criterion_cf(
         self,
@@ -141,12 +146,10 @@ class LitModel(pl.LightningModule):
 
         # Metrics
         ap = average_precision_score(labels, preds)
-        f1 = f1_score(labels, preds > 0.5, average="macro")
 
         self.log_dict(
             {
                 f"ap/{phase}": ap,
-                f"f1/{phase}": f1,
             },
             logger=True,
             on_epoch=True,
@@ -154,13 +157,16 @@ class LitModel(pl.LightningModule):
             prog_bar=False,
         )
 
-        loss, ap, f1 = np.round([loss, ap, f1], 3)
+        loss, ap = np.round([loss, ap], 3)
         logger.info(
-            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, ap, f1]=}"
+            f"[{self.current_epoch}/{self.cfg['epochs'] - 1}] {phase} epoch end. {[loss, ap]=}"
         )
 
         if phase == "val" and ap > self.map_best:
             self.map_best = ap
+
+            np.save(self.preds_path, preds)
+            np.save(self.labels_path, labels)
 
     def training_step(self, batch, batch_idx):
         return self._loss_helper(batch, phase="train")
