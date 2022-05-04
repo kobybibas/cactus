@@ -212,7 +212,7 @@ def load_preds(base_path):
 
         ap_a = average_precision_score(labels, preds_a)  # ,average='micro')
         ap_b = average_precision_score(labels, preds_b)  # ,average='micro')
-        ratio = 100 * ap_b / ap_a - 100
+        ratio = np.round(100 * np.round(ap_b,3) / np.round(ap_a,3) - 100,2)
         print(
             f"{key_a} {key_b} [{ap_a:.3f} {ap_b:.3f} {ratio:.3f}%]. size={preds_a.shape}"
         )
