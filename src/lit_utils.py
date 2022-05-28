@@ -4,7 +4,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from sklearn.metrics import average_precision_score, f1_score
+from sklearn.metrics import average_precision_score
 import os.path as osp
 from architecture_utils import get_backbone, get_cf_predictor, get_classifier
 
@@ -79,6 +79,10 @@ class LitModel(pl.LightningModule):
         y_hat = self.classifier(z)
         cf_hat = self.cf_layers(z)
         return y_hat, cf_hat
+
+    def get_embeddings(self, x):
+        z = self.backbone(x).flatten(1)
+        return z
 
     def _loss_helper(self, batch, phase: str):
         assert phase in ["train", "val"]
